@@ -1283,7 +1283,7 @@ document.addEventListener('keydown', function (event) {
     }
 })
 
-// Track previous state to avoid unnecessary DOM updates
+// ======= UPDATED INTERVAL WITH FLICKER FIX =======
 let _lastSylRef = null;
 let _lastLineEl = null;
 
@@ -1299,13 +1299,12 @@ setInterval(() => {
     const time = player.currentTime * 1000;
     const EPS = 1; // 1ms tolerance
 
-    // Find the current syllable using start times with epsilon
+    // Find the current syllable
     let currentSylRef = null;
     for (let i = 0; i < allSyllables.length; i++) {
         const { lineIdx, syllabusIdx } = allSyllables[i];
         const syl = tempLyrics[lineIdx]?.syllabus[syllabusIdx];
         if (!syl || !syl.isDone) break;
-        // Use > time + EPS to avoid toggling on exact boundary
         if ((syl.time || 0) > time + EPS) {
             if (i > 0) currentSylRef = allSyllables[i - 1];
             break;
@@ -1313,13 +1312,12 @@ setInterval(() => {
         currentSylRef = allSyllables[i];
     }
 
-    // If nothing has changed, skip DOM updates
     const sameRef = _lastSylRef && currentSylRef &&
         _lastSylRef.lineIdx === currentSylRef.lineIdx &&
         _lastSylRef.syllabusIdx === currentSylRef.syllabusIdx;
 
     if (!sameRef) {
-        // Update playing‑word class
+        // Update playing-word
         const playingEl = document.querySelector('.playing-word');
         if (playingEl) playingEl.classList.remove('playing-word');
 
@@ -1331,7 +1329,7 @@ setInterval(() => {
             }
         }
 
-        // Update past‑word classes on all syllables (only when changed)
+        // Update past-word
         const allSylElems = Array.from(document.querySelectorAll('.lyrics-word'))
             .filter(el => el.id.startsWith('syl-'));
         const currentElem = currentSyl?.element;
@@ -1340,13 +1338,12 @@ setInterval(() => {
             el.classList.toggle('past-word', idx < currentElemIdx);
         });
 
-        // Update line classes (only when the line changes)
+        // Update line classes only when line changes
         const newLineEl = currentSyl?.element?.closest('.lyrics-line');
         if (newLineEl !== _lastLineEl) {
             // Remove classes from old line(s)
             if (_lastLineEl) {
                 _lastLineEl.classList.remove('playing-line', 'next-playing-line', 'previous-playing-line', 'next-next-playing-line');
-                // Also remove from siblings that might have been set
                 const oldNext = _lastLineEl.nextElementSibling;
                 if (oldNext && !oldNext.classList.contains('tagged-line')) {
                     oldNext.classList.remove('next-playing-line', 'next-next-playing-line');
@@ -1378,7 +1375,6 @@ setInterval(() => {
                 const prevLine = getValidLine(newLineEl, 'previous');
                 if (prevLine) prevLine.classList.add('previous-playing-line');
 
-                // Scroll preview only when line changes
                 if (document.getElementById('lyrics-content').classList.contains('preview')) {
                     const lyricsContent = document.getElementById('lyrics-content');
                     lyricsContent.scrollTop = newLineEl.offsetTop - lyricsContent.clientHeight / 2 + 120;
@@ -1389,13 +1385,14 @@ setInterval(() => {
         _lastSylRef = currentSylRef;
     }
 
-    // Update played_word for any other logic (like title display)
+    // Update played_word for any other logic
     const currentSyl = currentSylRef ? tempLyrics[currentSylRef.lineIdx]?.syllabus[currentSylRef.syllabusIdx] : null;
     const currentText = currentSyl?.text || '';
     if (currentText !== played_word) {
         played_word = currentText;
     }
 }, 1);
+// ======= END OF UPDATED INTERVAL =======
 
 elem_musicInput.addEventListener('change', function () {
     const file = this.files[0]
