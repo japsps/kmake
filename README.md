@@ -8,12 +8,12 @@
   <p align="center">
     Introducing a new way to make and preview lyrics, right in your web browser.
     <br />
-    <a href="kmake.vincelinise.com"><strong>Go on https://japsps.github.io/kmake »</strong></a>
+    <a href="japsps.github.io/kmake"><strong>Go on japsps.github.io/kmake »</strong></a>
     <br />
     <br />
-    <a href="https://github.com/ecnivtwelve/kmake/issues">Report Bug</a>
+    <a href="https://github.com/japsps/kmake/issues">Report Bug</a>
     ·
-    <a href="https://github.com/ecnivtwelve/kmake/issues">Request Feature</a>
+    <a href="https://github.com/japsps/kmake/issues">Request Feature</a>
   </p>
 </div>
 
