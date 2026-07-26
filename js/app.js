@@ -1105,49 +1105,56 @@ function prepareNewKpoeJSON(cleanTiming = true) {
     }, null, 4)], { type: 'application/json' })
 }
 
-function prepareLegacyJSON(cleanTiming = true) {
-    if (!tempLyrics || tempLyrics.length === 0) return new Blob(['{}'], { type: 'application/json' })
-    _recomputeSongPartTimeline()
-    const durMs = (player.duration || 0) * 1000
-    const tMin = Math.floor(durMs / 60000)
-    const tSec = ((durMs % 60000) / 1000).toFixed(3)
-    metadata.totalDuration = tMin + ':' + String(tSec).padStart(6, '0')
+function prepareLegacyJSON(cleanTiming = false) {
+    if (!tempLyrics || tempLyrics.length === 0) {
+        return new Blob(['[]'], { type: 'application/json' })
+    }
 
     const exportedWords = []
+
     tempLyrics.forEach(line => {
-        if (line.isTaggedLine) return
+        if (!line || line.isTaggedLine) return
 
-        // If cleanTiming is on, don't even process lines that are empty
-        if (cleanTiming && (line.text || '').trim() === '') return;
+        const syllabus = (line.syllabus || []).filter(syl => {
+            if (!syl) return false
 
-        const syllabus = line.syllabus || []
-        const partIdx = line.element?.songPartIndex ?? -1
-        const partName = (partIdx >= 0 && metadata.songParts[partIdx]) ? metadata.songParts[partIdx].name : null
-        const singer = line.element?.singer || 'v1'
-        const key = line.element?.key || ''
+            // Keep only syllables that actually have timing information.
+            // This prevents exporting unsynced placeholder words as 0/0 junk.
+            const hasTiming =
+                syl.isDone ||
+                (syl.time || 0) > 0 ||
+                (syl.duration || 0) > 0
 
-        // Filter syllables that are just whitespace
-        const activeSyllables = syllabus.filter(syl => {
-            const cleaned = (syl.text || '').replace(/\]/g, '').trim();
-            return !cleanTiming || cleaned !== '';
-        });
+            if (!hasTiming) return false
 
-        activeSyllables.forEach((syl, si) => {
+            if (cleanTiming) {
+                return (syl.text || '').replace(/\]/g, '').trim() !== ''
+            }
+
+            return true
+        })
+
+        if (syllabus.length === 0) return
+
+        syllabus.forEach((syl, si) => {
+            let text = (syl.text || '').replace(/\]/g, '')
+
+            if (cleanTiming) {
+                text = text.trim()
+            }
+
             exportedWords.push({
-                time: Math.round(syl.time || 0),
-                duration: Math.round(syl.duration || 0),
-                text: (syl.text || '').replace(/\]/g, ''),
-                isLineEnding: si === activeSyllables.length - 1 ? 1 : 0,
-                element: { key, songPart: partName, singer }
+                time: Math.max(0, Math.round(syl.time || 0)),
+                duration: Math.max(0, Math.round(syl.duration || 0)),
+                text: text,
+                isLineEnding: si === syllabus.length - 1 ? 1 : 0
             })
         })
     })
 
-    const plainText = elem_lyricsInput.value !== '' ? elem_lyricsInput.value : undefined
-    return new Blob([JSON.stringify({
-        type: 'Word', KpoeTools: AppVersion.version,
-        metadata, lyrics: exportedWords, plainText, isNotRaw: true
-    }, null, 4)], { type: 'application/json' })
+    return new Blob([JSON.stringify(exportedWords, null, 2)], {
+        type: 'application/json'
+    })
 }
 
 function prepareJSON(cleanTiming = true) {
@@ -1195,9 +1202,9 @@ function exportNewKpoeJSON() {
     _runExport(() => downloadBlob(prepareNewKpoeJSON()))
 }
 
-function exportLegacyJSON() {
-    if (!metadataEverOpened) { openMetadataEditor(() => exportLegacyJSON()); return }
-    _runExport(() => downloadBlob(prepareLegacyJSON()))
+function exportLegacyJSON() {.
+    // No metadata prompt, no wrapper object.
+    downloadBlob(prepareLegacyJSON(false), 'json')
 }
 
 function exportJSON() {
