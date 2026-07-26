@@ -1283,79 +1283,119 @@ document.addEventListener('keydown', function (event) {
     }
 })
 
+// Track previous state to avoid unnecessary DOM updates
+let _lastSylRef = null;
+let _lastLineEl = null;
+
 setInterval(() => {
-    if (!tempLyrics || tempLyrics.length === 0) return
+    if (!tempLyrics || tempLyrics.length === 0) return;
 
     if (player.paused) {
-        document.getElementById('lyrics-content').classList.add('paused')
+        document.getElementById('lyrics-content').classList.add('paused');
     } else {
-        document.getElementById('lyrics-content').classList.remove('paused')
+        document.getElementById('lyrics-content').classList.remove('paused');
     }
 
-    const time = player.currentTime * 1000
+    const time = player.currentTime * 1000;
+    const EPS = 1; // 1ms tolerance
 
-    let currentSylRef = null
+    // Find the current syllable using start times with epsilon
+    let currentSylRef = null;
     for (let i = 0; i < allSyllables.length; i++) {
-        const { lineIdx, syllabusIdx } = allSyllables[i]
-        const syl = tempLyrics[lineIdx]?.syllabus[syllabusIdx]
-        if (!syl || !syl.isDone) break
-        if ((syl.time || 0) > time) {
-            if (i > 0) currentSylRef = allSyllables[i - 1]
-            break
+        const { lineIdx, syllabusIdx } = allSyllables[i];
+        const syl = tempLyrics[lineIdx]?.syllabus[syllabusIdx];
+        if (!syl || !syl.isDone) break;
+        // Use > time + EPS to avoid toggling on exact boundary
+        if ((syl.time || 0) > time + EPS) {
+            if (i > 0) currentSylRef = allSyllables[i - 1];
+            break;
         }
-        currentSylRef = allSyllables[i]
+        currentSylRef = allSyllables[i];
     }
 
-    const playingEl = document.querySelector('.playing-word')
-    if (playingEl) playingEl.classList.remove('playing-word')
+    // If nothing has changed, skip DOM updates
+    const sameRef = _lastSylRef && currentSylRef &&
+        _lastSylRef.lineIdx === currentSylRef.lineIdx &&
+        _lastSylRef.syllabusIdx === currentSylRef.syllabusIdx;
 
-    let currentSyl = null
-    if (currentSylRef) {
-        currentSyl = tempLyrics[currentSylRef.lineIdx]?.syllabus[currentSylRef.syllabusIdx]
-        if (currentSyl?.element) currentSyl.element.classList.add('playing-word')
-    }
+    if (!sameRef) {
+        // Update playing‑word class
+        const playingEl = document.querySelector('.playing-word');
+        if (playingEl) playingEl.classList.remove('playing-word');
 
-    const currentText = currentSyl?.text || ''
-    if (currentText === played_word) return
-    played_word = currentText
-
-    const allSylElems = Array.from(document.querySelectorAll('.lyrics-word')).filter(el => el.id.startsWith('syl-'))
-    const currentElem = currentSyl?.element
-    const currentElemIdx = currentElem ? allSylElems.indexOf(currentElem) : -1
-    allSylElems.forEach((el, idx) => { el.classList.toggle('past-word', idx < currentElemIdx) })
-
-    document.querySelectorAll('.lyrics-line:not(.tagged-line)').forEach(l => {
-        l.classList.remove('playing-line', 'next-playing-line', 'previous-playing-line', 'next-next-playing-line')
-    })
-
-    if (!currentSyl?.element) return
-    const lyricsLine = currentSyl.element.closest('.lyrics-line')
-    if (!lyricsLine || lyricsLine.classList.contains('tagged-line')) return
-
-    function getValidLine(element, direction) {
-        let cur = element
-        while (cur) {
-            cur = direction === 'next' ? cur.nextElementSibling : cur.previousElementSibling
-            if (cur && !cur.classList.contains('tagged-line')) return cur
+        let currentSyl = null;
+        if (currentSylRef) {
+            currentSyl = tempLyrics[currentSylRef.lineIdx]?.syllabus[currentSylRef.syllabusIdx];
+            if (currentSyl?.element) {
+                currentSyl.element.classList.add('playing-word');
+            }
         }
-        return null
+
+        // Update past‑word classes on all syllables (only when changed)
+        const allSylElems = Array.from(document.querySelectorAll('.lyrics-word'))
+            .filter(el => el.id.startsWith('syl-'));
+        const currentElem = currentSyl?.element;
+        const currentElemIdx = currentElem ? allSylElems.indexOf(currentElem) : -1;
+        allSylElems.forEach((el, idx) => {
+            el.classList.toggle('past-word', idx < currentElemIdx);
+        });
+
+        // Update line classes (only when the line changes)
+        const newLineEl = currentSyl?.element?.closest('.lyrics-line');
+        if (newLineEl !== _lastLineEl) {
+            // Remove classes from old line(s)
+            if (_lastLineEl) {
+                _lastLineEl.classList.remove('playing-line', 'next-playing-line', 'previous-playing-line', 'next-next-playing-line');
+                // Also remove from siblings that might have been set
+                const oldNext = _lastLineEl.nextElementSibling;
+                if (oldNext && !oldNext.classList.contains('tagged-line')) {
+                    oldNext.classList.remove('next-playing-line', 'next-next-playing-line');
+                }
+                const oldPrev = _lastLineEl.previousElementSibling;
+                if (oldPrev && !oldPrev.classList.contains('tagged-line')) {
+                    oldPrev.classList.remove('previous-playing-line');
+                }
+            }
+
+            if (newLineEl && !newLineEl.classList.contains('tagged-line')) {
+                newLineEl.classList.add('playing-line');
+
+                function getValidLine(element, direction) {
+                    let cur = element;
+                    while (cur) {
+                        cur = direction === 'next' ? cur.nextElementSibling : cur.previousElementSibling;
+                        if (cur && !cur.classList.contains('tagged-line')) return cur;
+                    }
+                    return null;
+                }
+
+                const nextLine = getValidLine(newLineEl, 'next');
+                if (nextLine) {
+                    nextLine.classList.add('next-playing-line');
+                    const nextNext = getValidLine(nextLine, 'next');
+                    if (nextNext) nextNext.classList.add('next-next-playing-line');
+                }
+                const prevLine = getValidLine(newLineEl, 'previous');
+                if (prevLine) prevLine.classList.add('previous-playing-line');
+
+                // Scroll preview only when line changes
+                if (document.getElementById('lyrics-content').classList.contains('preview')) {
+                    const lyricsContent = document.getElementById('lyrics-content');
+                    lyricsContent.scrollTop = newLineEl.offsetTop - lyricsContent.clientHeight / 2 + 120;
+                }
+            }
+            _lastLineEl = newLineEl;
+        }
+        _lastSylRef = currentSylRef;
     }
 
-    lyricsLine.classList.add('playing-line')
-    const nextLine = getValidLine(lyricsLine, 'next')
-    if (nextLine) {
-        nextLine.classList.add('next-playing-line')
-        const nextNext = getValidLine(nextLine, 'next')
-        if (nextNext) nextNext.classList.add('next-next-playing-line')
+    // Update played_word for any other logic (like title display)
+    const currentSyl = currentSylRef ? tempLyrics[currentSylRef.lineIdx]?.syllabus[currentSylRef.syllabusIdx] : null;
+    const currentText = currentSyl?.text || '';
+    if (currentText !== played_word) {
+        played_word = currentText;
     }
-    const prevLine = getValidLine(lyricsLine, 'previous')
-    if (prevLine) prevLine.classList.add('previous-playing-line')
-
-    if (document.getElementById('lyrics-content').classList.contains('preview')) {
-        const lyricsContent = document.getElementById('lyrics-content')
-        lyricsContent.scrollTop = lyricsLine.offsetTop - lyricsContent.clientHeight / 2 + 120
-    }
-}, 1)
+}, 1);
 
 elem_musicInput.addEventListener('change', function () {
     const file = this.files[0]
