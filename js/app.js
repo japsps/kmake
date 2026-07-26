@@ -959,8 +959,23 @@ function playPause() {
     if (player.paused) { player.play() } else { player.pause() }
 }
 
+let _editScrollTop = 0
+
 function previewToggle() {
-    document.getElementById('lyrics-content').classList.toggle('preview')
+    const content = document.getElementById('lyrics-content')
+    const enteringPreview = !content.classList.contains('preview')
+
+    if (enteringPreview) {
+        // Remember where the editor was scrolled before switching away
+        _editScrollTop = content.scrollTop
+    }
+
+    content.classList.toggle('preview')
+
+    if (!enteringPreview) {
+        // Back to edit mode — put the scroll back where you left it
+        content.scrollTop = _editScrollTop
+    }
 
     if (document.querySelector('#preview-mode').innerHTML == 'Preview mode') {
         document.querySelector('.part-left').setAttribute('visible', 'false')
@@ -972,7 +987,7 @@ function previewToggle() {
 
     const previewCheckbox = document.getElementById('preview-checkbox')
     if (previewCheckbox) {
-        previewCheckbox.checked = document.getElementById('lyrics-content').classList.contains('preview')
+        previewCheckbox.checked = content.classList.contains('preview')
     }
 }
 
