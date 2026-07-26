@@ -24,7 +24,7 @@ let metadata = {
 }
 const AppVersion = {
     version: '2.0-kmakeEditor',
-    customName: 'Ibratabian17\'s Fork'
+    customName: 'Jamster\'s Fork'
 }
 
 const elem_part_sortable = document.getElementsByClassName('part-sortable')
@@ -538,6 +538,10 @@ function parseJsonToLyrics(jsonData) {
 }
 
 function rebuildLyricsDOM() {
+    // Reset highlight tracking variables to force the interval to re-evaluate
+    _lastSylRef = null;
+    _lastLineEl = null;
+
     elem_lyricsContent.innerHTML = ''
     let lineDisplayIdx = 0
 
