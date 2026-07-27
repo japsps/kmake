@@ -1,8 +1,8 @@
 const jsmediatags = window.jsmediatags
 let currentLyrics = []
-let tempLyrics = []         // array of line objects including tagged (section/agent) entries
-let allSyllables = []       // flat cursor array: [{ lineIdx, syllabusIdx }], tagged lines excluded
-let currentWordIndex = 0    // current position in allSyllables
+let tempLyrics = [] // array of line objects including tagged (section/agent) entries
+let allSyllables = [] // flat cursor array: [{ lineIdx, syllabusIdx }], tagged lines excluded
+let currentWordIndex = 0 // current position in allSyllables
 let lastWordIndex = 0
 let goBackIndex = 0
 let importedJSON = false
@@ -16,7 +16,13 @@ let metadata = {
     title: "",
     language: "",
     songWriters: [],
-    agents: { "v1": { type: "person", name: "", alias: "v1" } },
+    agents: {
+        "v1": {
+            type: "person",
+            name: "",
+            alias: "v1"
+        }
+    },
     songParts: [],
     totalDuration: "",
     curator: "Kmake"
@@ -46,7 +52,7 @@ const player = new Plyr(elem_musicPlayer, {
         modestbranding: 1
     }
 })
-elem_showMenu.onclick = function () {
+elem_showMenu.onclick = function() {
     if (isVisible) {
         elem_navbar.setAttribute('visible', 'false')
         isVisible = false
@@ -65,17 +71,18 @@ for (let i = 0; i < elem_part_sortable.length; i++) {
         chosenClass: "inner-part-chosen",
         dragClass: "inner-part-drag",
         store: {
-            set: function (sortable) {
+            set: function(sortable) {
                 var order = sortable.toArray()
                 localStorage.setItem(sortable.options.group.name, order.join('|'))
             },
-            get: function (sortable) {
+            get: function(sortable) {
                 var order = localStorage.getItem(sortable.options.group.name)
                 return order ? order.split('|') : []
             }
         }
     })
 }
+
 function msToTime(duration) {
     let milliseconds = parseInt((duration % 1000) / 10)
     let seconds = parseInt((duration / 1000) % 60)
@@ -85,6 +92,7 @@ function msToTime(duration) {
     minutes = (minutes < 10) ? '0' + minutes : minutes
     return minutes + ':' + seconds + '.' + milliseconds
 }
+
 function splitTextWithSeparators(text) {
     if (!text) return ['']
     if (text.trim() === '') {
@@ -132,13 +140,16 @@ function splitTextWithSeparators(text) {
     }
     return words.length === 0 ? [text] : words
 }
+
 function isValidTag(text) {
     const trimmed = text.trim()
     return trimmed.startsWith('#') && trimmed.length > 1
 }
+
 function extractTagName(text) {
     return text.trim().substring(1)
 }
+
 function extractAgentDeclaration(text) {
     const regex = /^\[agent:(person|group|other|virtual)=([^:]+)(?::(.*))?\]$/i;
     const match = text.trim().match(regex);
@@ -151,6 +162,7 @@ function extractAgentDeclaration(text) {
     }
     return null;
 }
+
 function reset() {
     currentLyrics = []
     tempLyrics = []
@@ -173,12 +185,21 @@ function reset() {
         title: "",
         language: "",
         songWriters: [],
-        agents: { "v1": { type: "person", name: "", alias: "v1" } },
+        agents: {
+            "v1": {
+                type: "person",
+                name: "",
+                alias: "v1"
+            }
+        },
         songParts: [],
         totalDuration: "",
         curator: "Kmake"
     }
-    player.source = { type: 'audio', sources: [] }
+    player.source = {
+        type: 'audio',
+        sources: []
+    }
     elem_musicInput.value = ''
     elem_lyricsInput.value = ''
     elem_lyricsContent.innerHTML = ''
@@ -196,13 +217,21 @@ function buildAllSyllables() {
         if (!line || line.isTaggedLine) continue
         const syllabus = line.syllabus || []
         for (let si = 0; si < syllabus.length; si++) {
-            allSyllables.push({ lineIdx: li, syllabusIdx: si })
+            allSyllables.push({
+                lineIdx: li,
+                syllabusIdx: si
+            })
         }
     }
     // Virtual ENDOFLINE entry — lets the user press Enter one more time
     // after the last real syllable to set its duration
-    allSyllables.push({ lineIdx: -1, syllabusIdx: -1, isEndOfLine: true })
+    allSyllables.push({
+        lineIdx: -1,
+        syllabusIdx: -1,
+        isEndOfLine: true
+    })
 }
+
 function importSong() {
     elem_musicInput.type = 'file'
     elem_musicInput.accept = '.mp3, .wav, .ogg, .flac, .m4a, .mp4, .opus, .mkv, .webm, .m3u8'
@@ -210,6 +239,7 @@ function importSong() {
     elem_navbar.setAttribute('visible', 'false')
     isVisible = false
 }
+
 function importYoutube() {
     const url = prompt("Enter YouTube URL:");
     if (!url) return;
@@ -220,31 +250,26 @@ function importYoutube() {
         filename = `youtube-${videoId}`;
         player.source = {
             type: 'audio',
-            sources: [
-                {
-                    src: videoId,
-                    provider: 'youtube',
-                },
-            ],
+            sources: [{
+                src: videoId,
+                provider: 'youtube',
+            }, ],
         };
-        fetch(`https://noembed.com/embed?url=${url}`)
-            .then(response => response.json())
-            .then(data => {
-                const title = data.title || "YouTube Video"
-                const artist = data.author_name || "YouTube"
-                document.getElementById('music-title').innerText = title
-                document.getElementById('music-artist').innerText = artist
-                document.getElementById('music-album').innerText = "YouTube"
-                if (data.thumbnail_url) document.getElementById('music-album-art').src = data.thumbnail_url
-                metadata.title = metadata.title || title
-                metadata.artist = metadata.artist || artist
-                metadata.album = metadata.album || "YouTube"
-                metadata.source = metadata.source || url
-            })
-            .catch(err => {
-                console.error("Could not fetch YouTube metadata", err)
-                document.getElementById('music-title').innerText = "YouTube Video"
-            })
+        fetch(`https://noembed.com/embed?url=${url}`).then(response => response.json()).then(data => {
+            const title = data.title || "YouTube Video"
+            const artist = data.author_name || "YouTube"
+            document.getElementById('music-title').innerText = title
+            document.getElementById('music-artist').innerText = artist
+            document.getElementById('music-album').innerText = "YouTube"
+            if (data.thumbnail_url) document.getElementById('music-album-art').src = data.thumbnail_url
+            metadata.title = metadata.title || title
+            metadata.artist = metadata.artist || artist
+            metadata.album = metadata.album || "YouTube"
+            metadata.source = metadata.source || url
+        }).catch(err => {
+            console.error("Could not fetch YouTube metadata", err)
+            document.getElementById('music-title').innerText = "YouTube Video"
+        })
         if (!importedJSON) {
             currentLyrics = [];
             currentWordIndex = 0;
@@ -259,6 +284,7 @@ function importYoutube() {
         alert("Invalid YouTube URL");
     }
 }
+
 function importJSON(files) {
     const input = document.createElement('input')
     input.type = 'file'
@@ -267,12 +293,12 @@ function importJSON(files) {
         input.click()
     }
     importedJSON = true
-    input.addEventListener('change', function () {
+    input.addEventListener('change', function() {
         const file = this.files[0]
         if (!file) return
         const reader = new FileReader()
         reader.readAsText(file, 'UTF-8')
-        reader.onload = function (evt) {
+        reader.onload = function(evt) {
             try {
                 // Fresh import — start with a clean undo history
                 undoStack.length = 0
@@ -300,6 +326,7 @@ function importJSON(files) {
         input.dispatchEvent(new Event('change'))
     }
 }
+
 function detectKpoeFormat(jsonData) {
     const lyrics = jsonData.lyrics
     if (Array.isArray(lyrics) && lyrics.length > 0 && Array.isArray(lyrics[0].syllabus)) {
@@ -307,13 +334,20 @@ function detectKpoeFormat(jsonData) {
     }
     return 'v1'
 }
+
 function parseNewKpoeFormat(jsonData) {
     const meta = jsonData.metadata || {}
     metadata.source = meta.source || ''
     metadata.title = meta.title || ''
     metadata.language = meta.language || ''
     metadata.songWriters = meta.songWriters || []
-    metadata.agents = meta.agents || { v1: { type: 'person', name: '', alias: 'v1' } }
+    metadata.agents = meta.agents || {
+        v1: {
+            type: 'person',
+            name: '',
+            alias: 'v1'
+        }
+    }
     metadata.songParts = meta.songParts || []
     metadata.totalDuration = meta.totalDuration || ''
     const lyricsArr = jsonData.lyrics || []
@@ -328,9 +362,7 @@ function parseNewKpoeFormat(jsonData) {
     if (showSingerSyntax) {
         for (const alias in metadata.agents) {
             const agent = metadata.agents[alias]
-            plainText += agent.name
-                ? `[agent:${agent.type}=${alias}:${agent.name}]\n`
-                : `[agent:${agent.type}=${alias}]\n`
+            plainText += agent.name ? `[agent:${agent.type}=${alias}:${agent.name}]\n` : `[agent:${agent.type}=${alias}]\n`
         }
         plainText += '\n'
     }
@@ -342,10 +374,15 @@ function parseNewKpoeFormat(jsonData) {
             const partName = metadata.songParts[partIdx].name
             plainText += '#' + partName + '\n'
             newLyrics.push({
-                time: 0, duration: 0,
+                time: 0,
+                duration: 0,
                 text: '#' + partName,
                 syllabus: [],
-                element: { key: 'tag-' + partIdx, singer: null, songPartIndex: partIdx },
+                element: {
+                    key: 'tag-' + partIdx,
+                    singer: null,
+                    songPartIndex: partIdx
+                },
                 isTaggedLine: true,
                 tag: partName,
                 lineIndex: lineIndex,
@@ -372,8 +409,10 @@ function parseNewKpoeFormat(jsonData) {
                 singer: el.singer || 'v1',
                 songPartIndex: partIdx
             },
-            isTaggedLine: false, tag: null,
-            lineIndex: lineIndex, lineElement: null
+            isTaggedLine: false,
+            tag: null,
+            lineIndex: lineIndex,
+            lineElement: null
         })
         const singer = el.singer || 'v1'
         plainText += (showSingerSyntax ? singer + ':' : '') + (item.text || '') + '\n'
@@ -386,6 +425,7 @@ function parseNewKpoeFormat(jsonData) {
     _seekToFirstUnsynced()
     _scheduleSessionSave()
 }
+
 function parseLegacyToV2(jsonData) {
     const raw = Array.isArray(jsonData) ? jsonData : (jsonData.lyrics || [])
     const plainText = jsonData.plainText || ''
@@ -406,7 +446,11 @@ function parseLegacyToV2(jsonData) {
     lineGroups.forEach(group => {
         const spName = group[0]?.element?.songPart || null
         if (spName && spName !== prevSpName) {
-            metadata.songParts.push({ name: spName, time: 0, duration: 0 })
+            metadata.songParts.push({
+                name: spName,
+                time: 0,
+                duration: 0
+            })
         }
         prevSpName = spName
     })
@@ -433,9 +477,7 @@ function parseLegacyToV2(jsonData) {
     if (showSingerSyntax) {
         for (const alias in metadata.agents) {
             const agent = metadata.agents[alias]
-            rebuiltPlainText += agent.name
-                ? `[agent:${agent.type}=${alias}:${agent.name}]\n`
-                : `[agent:${agent.type}=${alias}]\n`
+            rebuiltPlainText += agent.name ? `[agent:${agent.type}=${alias}:${agent.name}]\n` : `[agent:${agent.type}=${alias}]\n`
         }
         rebuiltPlainText += '\n'
     }
@@ -446,12 +488,19 @@ function parseLegacyToV2(jsonData) {
         if (partIdx !== prevPartIdx && partIdx >= 0) {
             rebuiltPlainText += '#' + spName + '\n'
             newLyrics.push({
-                time: 0, duration: 0,
+                time: 0,
+                duration: 0,
                 text: '#' + spName,
                 syllabus: [],
-                element: { key: 'tag-' + partIdx, singer: null, songPartIndex: partIdx },
-                isTaggedLine: true, tag: spName,
-                lineIndex: lineIndex, lineElement: null
+                element: {
+                    key: 'tag-' + partIdx,
+                    singer: null,
+                    songPartIndex: partIdx
+                },
+                isTaggedLine: true,
+                tag: spName,
+                lineIndex: lineIndex,
+                lineElement: null
             })
             prevPartIdx = partIdx
             lineIndex++
@@ -476,8 +525,10 @@ function parseLegacyToV2(jsonData) {
                 singer: firstItem.element?.singer || 'v1',
                 songPartIndex: partIdx
             },
-            isTaggedLine: false, tag: null,
-            lineIndex: lineIndex, lineElement: null
+            isTaggedLine: false,
+            tag: null,
+            lineIndex: lineIndex,
+            lineElement: null
         })
         const singer = firstItem.element?.singer || 'v1'
         rebuiltPlainText += (showSingerSyntax ? singer + ':' : '') + lineText + '\n'
@@ -490,11 +541,15 @@ function parseLegacyToV2(jsonData) {
     _seekToFirstUnsynced()
     _scheduleSessionSave()
 }
+
 function parseJsonToLyrics(jsonData) {
-    const wrapper = Array.isArray(jsonData) ? { lyrics: jsonData } : jsonData
+    const wrapper = Array.isArray(jsonData) ? {
+        lyrics: jsonData
+    } : jsonData
     parseLegacyToV2(wrapper)
     return tempLyrics
 }
+
 function rebuildLyricsDOM() {
     // Reset highlight tracking variables to force the interval to re-evaluate
     _lastSylRef = null;
@@ -517,8 +572,8 @@ function rebuildLyricsDOM() {
             return
         }
         p.classList.add(lineDisplayIdx % 2 === 0 ? 'even' : 'odd')
-        line.lineElement = p
-        ; (line.syllabus || []).forEach((syl, si) => {
+        line.lineElement = p;
+        (line.syllabus || []).forEach((syl, si) => {
             const span = document.createElement('span')
             span.classList.add('lyrics-word')
             span.innerText = syl.text
@@ -535,22 +590,69 @@ function rebuildLyricsDOM() {
         lineDisplayIdx++
     })
 }
+
 function _seekToFirstUnsynced() {
     currentWordIndex = allSyllables.length // default: all done
     for (let i = 0; i < allSyllables.length; i++) {
         const entry = allSyllables[i]
         if (entry.isEndOfLine) continue
         const syl = tempLyrics[entry.lineIdx].syllabus[entry.syllabusIdx]
-        if (syl.isBackground) continue   // skip background syllables
+        if (syl.isBackground) continue // skip background syllables
         if (!syl.isDone) {
             currentWordIndex = i
             break
         }
     }
 }
+
 function cleanText(text) {
     return (text || '').replace(/[\]\-\s]/g, '').toLowerCase()
 }
+// LCS timing restore shared by exact and fuzzy line matching.
+// With dryRun = true it only scores the overlap without changing anything.
+function _restoreTimingViaLCS(syllabus, oldSyls, dryRun = false) {
+    const O = oldSyls.length
+    const N = syllabus.length
+    if (!O || !N) return 0
+    const dp = Array.from({
+        length: O + 1
+    }, () => new Array(N + 1).fill(0))
+    for (let oi = 1; oi <= O; oi++) {
+        for (let ni = 1; ni <= N; ni++) {
+            if (cleanText(oldSyls[oi - 1].text) === cleanText(syllabus[ni - 1].text)) {
+                dp[oi][ni] = dp[oi - 1][ni - 1] + 1
+            } else {
+                dp[oi][ni] = Math.max(dp[oi - 1][ni], dp[oi][ni - 1])
+            }
+        }
+    }
+    const score = dp[O][N]
+    if (dryRun || score === 0) return score
+    let oi = O,
+        ni = N
+    const matches = []
+    while (oi > 0 && ni > 0) {
+        if (cleanText(oldSyls[oi - 1].text) === cleanText(syllabus[ni - 1].text)) {
+            matches.push([oi - 1, ni - 1])
+            oi--;
+            ni--
+        } else if (dp[oi - 1][ni] >= dp[oi][ni - 1]) {
+            oi--
+        } else {
+            ni--
+        }
+    }
+    for (const [oldIdx, newIdx] of matches) {
+        const oldSyl = oldSyls[oldIdx]
+        if (oldSyl.isDone) {
+            syllabus[newIdx].time = oldSyl.time
+            syllabus[newIdx].duration = oldSyl.duration
+            syllabus[newIdx].isDone = oldSyl.isDone
+        }
+    }
+    return score
+}
+
 function parseLyrics() {
     if (elem_lyricsInput.value.trim() === '') return
     elem_lyricsContent.innerHTML = ''
@@ -564,11 +666,16 @@ function parseLyrics() {
         }
     })
     const oldLineConsumed = new Map()
+    const unmatchedNewLines = [] // lines whose text changed — retried fuzzily below
     metadata.songParts = []
     // Each #Tag occurrence gets its own songParts entry — duplicates are intentional (grouping, not type)
     function addSongPart(tagName) {
         const idx = metadata.songParts.length
-        metadata.songParts.push({ name: tagName, time: 0, duration: 0 })
+        metadata.songParts.push({
+            name: tagName,
+            time: 0,
+            duration: 0
+        })
         return idx
     }
     const newLyrics = []
@@ -596,9 +703,19 @@ function parseLyrics() {
             span.id = 'line-tag-' + lineIndex
             p.appendChild(span)
             newLyrics.push({
-                time: 0, duration: 0, text: trimmed, syllabus: [],
-                element: { key: 'tag-' + lineIndex, singer: null, songPartIndex: currentSongPartIndex },
-                isTaggedLine: true, tag: null, lineIndex: lineIndex, lineElement: p
+                time: 0,
+                duration: 0,
+                text: trimmed,
+                syllabus: [],
+                element: {
+                    key: 'tag-' + lineIndex,
+                    singer: null,
+                    songPartIndex: currentSongPartIndex
+                },
+                isTaggedLine: true,
+                tag: null,
+                lineIndex: lineIndex,
+                lineElement: p
             })
             elem_lyricsContent.appendChild(p)
             return
@@ -615,9 +732,19 @@ function parseLyrics() {
             span.id = 'line-tag-' + lineIndex
             p.appendChild(span)
             newLyrics.push({
-                time: 0, duration: 0, text: trimmed, syllabus: [],
-                element: { key: 'tag-' + lineIndex, singer: null, songPartIndex: currentSongPartIndex },
-                isTaggedLine: true, tag: currentTag, lineIndex: lineIndex, lineElement: p
+                time: 0,
+                duration: 0,
+                text: trimmed,
+                syllabus: [],
+                element: {
+                    key: 'tag-' + lineIndex,
+                    singer: null,
+                    songPartIndex: currentSongPartIndex
+                },
+                isTaggedLine: true,
+                tag: currentTag,
+                lineIndex: lineIndex,
+                lineElement: p
             })
             elem_lyricsContent.appendChild(p)
             return
@@ -636,46 +763,21 @@ function parseLyrics() {
             }
         }
         const words = splitTextWithSeparators(actualLineText)
-        const syllabus = words.map(w => ({ time: 0, duration: 0, text: w, isDone: false, element: null }))
+        const syllabus = words.map(w => ({
+            time: 0,
+            duration: 0,
+            text: w,
+            isDone: false,
+            element: null
+        }))
         const _key = cleanText(actualLineText)
         const _pool = oldLineMap.get(_key)
         const _consumed = oldLineConsumed.get(_key) || 0
         const oldLine = _pool ? _pool[_consumed] : null
         if (_pool && _consumed < _pool.length) oldLineConsumed.set(_key, _consumed + 1)
-        if (oldLine && oldLine.syllabus) {
-            const oldSyls = oldLine.syllabus
-            const O = oldSyls.length
-            const N = syllabus.length
-            const dp = Array.from({ length: O + 1 }, () => new Array(N + 1).fill(0))
-            for (let oi = 1; oi <= O; oi++) {
-                for (let ni = 1; ni <= N; ni++) {
-                    if (cleanText(oldSyls[oi - 1].text) === cleanText(syllabus[ni - 1].text)) {
-                        dp[oi][ni] = dp[oi - 1][ni - 1] + 1
-                    } else {
-                        dp[oi][ni] = Math.max(dp[oi - 1][ni], dp[oi][ni - 1])
-                    }
-                }
-            }
-            let oi = O, ni = N
-            const matches = []
-            while (oi > 0 && ni > 0) {
-                if (cleanText(oldSyls[oi - 1].text) === cleanText(syllabus[ni - 1].text)) {
-                    matches.push([oi - 1, ni - 1])
-                    oi--; ni--
-                } else if (dp[oi - 1][ni] >= dp[oi][ni - 1]) {
-                    oi--
-                } else {
-                    ni--
-                }
-            }
-            for (const [oldIdx, newIdx] of matches) {
-                const oldSyl = oldSyls[oldIdx]
-                if (oldSyl.isDone) {
-                    syllabus[newIdx].time = oldSyl.time
-                    syllabus[newIdx].duration = oldSyl.duration
-                    syllabus[newIdx].isDone = oldSyl.isDone
-                }
-            }
+        const matchedExact = !!(oldLine && oldLine.syllabus)
+        if (matchedExact) {
+            _restoreTimingViaLCS(syllabus, oldLine.syllabus)
         }
         const lineText = words.join('')
         const lineTime = syllabus.find(s => s.isDone)?.time || 0
@@ -695,20 +797,79 @@ function parseLyrics() {
             syl.element = span
             p.appendChild(span)
         })
-        newLyrics.push({
-            time: lineTime, duration: lineDur, text: lineText, syllabus: syllabus,
-            element: { key: 'L' + lineIndex, singer: lineSinger, songPartIndex: currentSongPartIndex },
-            isTaggedLine: false, tag: null, lineIndex: lineIndex, lineElement: p
-        })
+        const lineObj = {
+            time: lineTime,
+            duration: lineDur,
+            text: lineText,
+            syllabus: syllabus,
+            element: {
+                key: 'L' + lineIndex,
+                singer: lineSinger,
+                songPartIndex: currentSongPartIndex
+            },
+            isTaggedLine: false,
+            tag: null,
+            lineIndex: lineIndex,
+            lineElement: p
+        }
+        newLyrics.push(lineObj)
+        if (!matchedExact) {
+            unmatchedNewLines.push({
+                syllabus,
+                lineObj
+            })
+        }
         elem_lyricsContent.appendChild(p)
         lineDisplayIdx++
     })
+    // Fuzzy rematch — an edited line loses its exact-match key, so pair it with
+    // the most similar unused old line and salvage timing for unchanged words.
+    if (unmatchedNewLines.length) {
+        const unusedOldLines = []
+        for (const key of oldLineMap.keys()) {
+            const pool = oldLineMap.get(key)
+            const consumed = oldLineConsumed.get(key) || 0
+            for (let i = consumed; i < pool.length; i++) unusedOldLines.push(pool[i])
+        }
+        unmatchedNewLines.forEach(entry => {
+            if (!unusedOldLines.length) return
+            let bestIdx = -1,
+                bestScore = 0,
+                bestDist = Infinity
+            unusedOldLines.forEach((oldLine, oi) => {
+                const score = _restoreTimingViaLCS(entry.syllabus, oldLine.syllabus || [], true)
+                // Tie-break on position so duplicate lines (choruses) pair in order
+                const dist = Math.abs((oldLine.lineIndex ?? 0) - (entry.lineObj.lineIndex ?? 0))
+                if (score > bestScore || (score === bestScore && dist < bestDist)) {
+                    bestScore = score;
+                    bestDist = dist;
+                    bestIdx = oi
+                }
+            })
+            // Require at least half the words to still match, so brand-new
+            // lines don't accidentally inherit a stranger's timing
+            const minMatch = Math.max(1, Math.ceil(entry.syllabus.length / 2))
+            if (bestIdx !== -1 && bestScore >= minMatch) {
+                const oldLine = unusedOldLines.splice(bestIdx, 1)[0]
+                _restoreTimingViaLCS(entry.syllabus, oldLine.syllabus || [])
+                // The DOM spans were already built — paint the restored state
+                entry.syllabus.forEach(s => {
+                    if (s.isDone && s.element) {
+                        s.element.classList.add('done-word')
+                        s.element.style.setProperty('--duration', s.duration + 'ms')
+                    }
+                })
+                _recalcLineTime(entry.lineObj)
+            }
+        })
+    }
     tempLyrics = newLyrics
     buildAllSyllables()
     _recalcMissingDurations()
     _seekToFirstUnsynced()
     _scheduleSessionSave()
 }
+
 function _recalcMissingDurations() {
     for (let i = 0; i < allSyllables.length - 1; i++) {
         const entry = allSyllables[i]
@@ -747,11 +908,14 @@ function _syncPrevDuration(lineIdx, syllabusIdx) {
         if (prev.element) prev.element.style.setProperty('--duration', prev.duration + 'ms')
     }
 }
+
 function nextWord() {
     const NextWordButton = document.getElementById('nextword-button')
     if (NextWordButton) {
         NextWordButton.classList.add('enabled')
-        setTimeout(() => { NextWordButton.classList.remove('enabled') }, 50)
+        setTimeout(() => {
+            NextWordButton.classList.remove('enabled')
+        }, 50)
     }
     if (allSyllables.length === 0 || currentWordIndex >= allSyllables.length) return
     pushUndo()
@@ -780,7 +944,10 @@ function nextWord() {
         _scheduleSessionSave()
         return
     }
-    const { lineIdx, syllabusIdx } = entry
+    const {
+        lineIdx,
+        syllabusIdx
+    } = entry
     const line = tempLyrics[lineIdx]
     if (!line) return
     const syl = line.syllabus[syllabusIdx]
@@ -826,9 +993,13 @@ function nextWord() {
     currentWordIndex++
     _scheduleSessionSave()
 }
+
 function openWord(wordIndex) {
     if (wordIndex < 0 || wordIndex >= allSyllables.length) return
-    const { lineIdx, syllabusIdx } = allSyllables[wordIndex]
+    const {
+        lineIdx,
+        syllabusIdx
+    } = allSyllables[wordIndex]
     const line = tempLyrics[lineIdx]
     if (!line) return
     const syl = line.syllabus[syllabusIdx]
@@ -863,6 +1034,7 @@ function openWord(wordIndex) {
     if (empty) empty.style.display = 'none'
     if (filled) filled.style.display = 'flex'
 }
+
 function unselect() {
     selectedWordIndex = -1
     document.querySelectorAll('.opened-word').forEach(el => el.classList.remove('opened-word'))
@@ -878,6 +1050,7 @@ function unselect() {
     if (empty) empty.style.display = 'flex'
     if (filled) filled.style.display = 'none'
 }
+
 function isRTL(s) {
     if (!s || typeof s !== 'string') return false
     var ltrChars = 'A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02B8\u0300-\u0590\u0800-\u1FFF' + '\u2C00-\uFB1C\uFDFE-\uFE6F\uFEFD-\uFFFF',
@@ -885,15 +1058,23 @@ function isRTL(s) {
         rtlDirCheck = new RegExp('^[^' + ltrChars + ']*[' + rtlChars + ']')
     return rtlDirCheck.test(s)
 }
+
 function playPause() {
     const playPauseButton = document.getElementById('playpause-button')
     if (playPauseButton) {
         playPauseButton.classList.add('enabled')
-        setTimeout(() => { playPauseButton.classList.remove('enabled') }, 50)
+        setTimeout(() => {
+            playPauseButton.classList.remove('enabled')
+        }, 50)
     }
-    if (player.paused) { player.play() } else { player.pause() }
+    if (player.paused) {
+        player.play()
+    } else {
+        player.pause()
+    }
 }
 let _editScrollTop = 0
+
 function previewToggle() {
     const content = document.getElementById('lyrics-content')
     const enteringPreview = !content.classList.contains('preview')
@@ -922,8 +1103,10 @@ document.getElementById('preview-theme')?.addEventListener('change', () => {
     const sel = document.getElementById('preview-theme')
     if (sel) document.getElementById('lyrics-content').setAttribute('data-theme', sel.value)
 })
+
 function _recomputeSongPartTimeline() {
-    const partFirstTime = {}, partLastEnd = {}
+    const partFirstTime = {},
+        partLastEnd = {}
     tempLyrics.forEach(line => {
         if (line.isTaggedLine) return
         const pi = line.element?.songPartIndex
@@ -938,11 +1121,18 @@ function _recomputeSongPartTimeline() {
     // Pass 1 — assign raw start times and durations
     metadata.songParts.forEach((part, i) => {
         const start = partFirstTime[i]
-        if (start == null) { part.time = 0; part.duration = 0; return }
+        if (start == null) {
+            part.time = 0;
+            part.duration = 0;
+            return
+        }
         part.time = Math.round(start)
         let nextStart = null
         for (let j = i + 1; j < metadata.songParts.length; j++) {
-            if (partFirstTime[j] != null) { nextStart = partFirstTime[j]; break }
+            if (partFirstTime[j] != null) {
+                nextStart = partFirstTime[j];
+                break
+            }
         }
         if (nextStart != null) {
             part.duration = Math.round(Math.max(0, nextStart - start))
@@ -966,12 +1156,18 @@ function _recomputeSongPartTimeline() {
         metadata.songParts.forEach(part => {
             if (!part.time && !part.duration) return
             if (part.time + part.duration > totalMs) part.duration = Math.max(0, totalMs - part.time)
-            if (part.time > totalMs) { part.time = totalMs; part.duration = 0 }
+            if (part.time > totalMs) {
+                part.time = totalMs;
+                part.duration = 0
+            }
         })
     }
 }
+
 function prepareNewKpoeJSON(cleanTiming = true) {
-    if (!tempLyrics || tempLyrics.length === 0) return new Blob(['{}'], { type: 'application/json' })
+    if (!tempLyrics || tempLyrics.length === 0) return new Blob(['{}'], {
+        type: 'application/json'
+    })
     _recomputeSongPartTimeline()
     // 2. Set total duration
     const durMs = (player.duration || 0) * 1000
@@ -979,42 +1175,38 @@ function prepareNewKpoeJSON(cleanTiming = true) {
     const tSec = ((durMs % 60000) / 1000).toFixed(3)
     metadata.totalDuration = tMin + ':' + String(tSec).padStart(6, '0')
     // 3. Process and Clean Lyrics
-    const exportedLyrics = tempLyrics
-        .filter(l => {
-            if (l.isTaggedLine) return false;
-            // Skip lines that are empty or just whitespace if cleaning is enabled
-            if (cleanTiming && (l.text || '').trim() === '') return false;
-            return true;
-        })
-        .map(line => {
-            // Clean and filter syllables first
-            const cleanedSyllables = (line.syllabus || [])
-                .filter(s => !cleanTiming || (s.text || '').replace(/\]/g, '').trim() !== '')
-                .map(s => ({
-                    time: Math.round(s.time || 0),
-                    duration: Math.round(s.duration || 0),
-                    text: (s.text || '').replace(/\]/g, '')
-                }));
-            let actualLineDuration = Math.round(line.duration || 0);
-            if (cleanedSyllables.length > 0) {
-                const lastSyllable = cleanedSyllables[cleanedSyllables.length - 1];
-                const lineEnd = lastSyllable.time + lastSyllable.duration;
-                actualLineDuration = lineEnd - Math.round(line.time || 0);
+    const exportedLyrics = tempLyrics.filter(l => {
+        if (l.isTaggedLine) return false;
+        // Skip lines that are empty or just whitespace if cleaning is enabled
+        if (cleanTiming && (l.text || '').trim() === '') return false;
+        return true;
+    }).map(line => {
+        // Clean and filter syllables first
+        const cleanedSyllables = (line.syllabus || []).filter(s => !cleanTiming || (s.text || '').replace(/\]/g, '').trim() !== '').map(s => ({
+            time: Math.round(s.time || 0),
+            duration: Math.round(s.duration || 0),
+            text: (s.text || '').replace(/\]/g, '')
+        }));
+        let actualLineDuration = Math.round(line.duration || 0);
+        if (cleanedSyllables.length > 0) {
+            const lastSyllable = cleanedSyllables[cleanedSyllables.length - 1];
+            const lineEnd = lastSyllable.time + lastSyllable.duration;
+            actualLineDuration = lineEnd - Math.round(line.time || 0);
+        }
+        // Reconstruct line text from the cleaned syllables to keep them in sync
+        const reconstructedText = cleanedSyllables.map(s => s.text).join('');
+        return {
+            time: Math.round(line.time || 0),
+            duration: actualLineDuration,
+            text: reconstructedText,
+            syllabus: cleanedSyllables,
+            element: {
+                key: line.element?.key || '',
+                singer: line.element?.singer || 'v1',
+                songPartIndex: line.element?.songPartIndex ?? -1
             }
-            // Reconstruct line text from the cleaned syllables to keep them in sync
-            const reconstructedText = cleanedSyllables.map(s => s.text).join('');
-            return {
-                time: Math.round(line.time || 0),
-                duration: actualLineDuration,
-                text: reconstructedText,
-                syllabus: cleanedSyllables,
-                element: {
-                    key: line.element?.key || '',
-                    singer: line.element?.singer || 'v1',
-                    songPartIndex: line.element?.songPartIndex ?? -1
-                }
-            };
-        });
+        };
+    });
     return new Blob([JSON.stringify({
         KpoeTools: AppVersion.version,
         type: 'Word',
@@ -1028,11 +1220,15 @@ function prepareNewKpoeJSON(cleanTiming = true) {
             totalDuration: metadata.totalDuration
         },
         lyrics: exportedLyrics
-    }, null, 4)], { type: 'application/json' })
+    }, null, 4)], {
+        type: 'application/json'
+    })
 }
 // JDNow-style export: a plain array of timed words, no metadata wrapper.
 function prepareLegacyJSON(cleanTiming = false) {
-    if (!tempLyrics || tempLyrics.length === 0) return new Blob(['[]'], { type: 'application/json' })
+    if (!tempLyrics || tempLyrics.length === 0) return new Blob(['[]'], {
+        type: 'application/json'
+    })
     const exportedWords = []
     tempLyrics.forEach(line => {
         if (!line || line.isTaggedLine) return
@@ -1040,10 +1236,7 @@ function prepareLegacyJSON(cleanTiming = false) {
             if (!syl) return false
             // Keep only syllables that actually have timing information,
             // so unsynced placeholders don't get exported as 0/0 junk
-            const hasTiming =
-                syl.isDone ||
-                (syl.time || 0) > 0 ||
-                (syl.duration || 0) > 0
+            const hasTiming = syl.isDone || (syl.time || 0) > 0 || (syl.duration || 0) > 0
             if (!hasTiming) return false
             if (cleanTiming) {
                 return (syl.text || '').replace(/\]/g, '').trim() !== ''
@@ -1062,13 +1255,19 @@ function prepareLegacyJSON(cleanTiming = false) {
             })
         })
     })
-    return new Blob([JSON.stringify(exportedWords, null, 2)], { type: 'application/json' })
+    return new Blob([JSON.stringify(exportedWords, null, 2)], {
+        type: 'application/json'
+    })
 }
+
 function prepareJSON(cleanTiming = true) {
     return prepareLegacyJSON(cleanTiming)
 }
+
 function prepareLRC() {
-    if (!tempLyrics || tempLyrics.length === 0) return new Blob([''], { type: 'text/plain' })
+    if (!tempLyrics || tempLyrics.length === 0) return new Blob([''], {
+        type: 'text/plain'
+    })
     let lrcContent = ''
     tempLyrics.forEach(line => {
         if (!line || line.isTaggedLine) return
@@ -1078,10 +1277,15 @@ function prepareLRC() {
         const lineText = syllabus.map(s => s.text).join('').trim()
         lrcContent += '[' + msToTime(lineTime) + ']' + lineText + '\n'
     })
-    return new Blob([lrcContent.trim()], { type: 'text/plain' })
+    return new Blob([lrcContent.trim()], {
+        type: 'text/plain'
+    })
 }
+
 function prepareELRC() {
-    if (!tempLyrics || tempLyrics.length === 0) return new Blob([''], { type: 'text/plain' })
+    if (!tempLyrics || tempLyrics.length === 0) return new Blob([''], {
+        type: 'text/plain'
+    })
     let lrcContent = ''
     tempLyrics.forEach(line => {
         if (!line || line.isTaggedLine) return
@@ -1097,27 +1301,44 @@ function prepareELRC() {
             }
         })
     })
-    return new Blob([lrcContent.trim()], { type: 'text/plain' })
+    return new Blob([lrcContent.trim()], {
+        type: 'text/plain'
+    })
 }
+
 function exportNewKpoeJSON() {
-    if (!metadataEverOpened) { openMetadataEditor(() => exportNewKpoeJSON()); return }
+    if (!metadataEverOpened) {
+        openMetadataEditor(() => exportNewKpoeJSON());
+        return
+    }
     _runExport(() => downloadBlob(prepareNewKpoeJSON()))
 }
+
 function exportLegacyJSON() {
     // Plain JDNow-style word array — no metadata prompt needed
     downloadBlob(prepareLegacyJSON(false), 'json')
 }
+
 function exportJSON() {
     exportNewKpoeJSON()
 }
+
 function exportLRC() {
-    if (!metadataEverOpened) { openMetadataEditor(() => exportLRC()); return }
+    if (!metadataEverOpened) {
+        openMetadataEditor(() => exportLRC());
+        return
+    }
     _runExport(() => downloadBlob(prepareLRC(), 'lrc'))
 }
+
 function exportELRC() {
-    if (!metadataEverOpened) { openMetadataEditor(() => exportELRC()); return }
+    if (!metadataEverOpened) {
+        openMetadataEditor(() => exportELRC());
+        return
+    }
     _runExport(() => downloadBlob(prepareELRC(), 'lrc'))
 }
+
 function downloadBlob(blob, format = 'json') {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -1126,17 +1347,27 @@ function downloadBlob(blob, format = 'json') {
     a.click()
     setTimeout(() => URL.revokeObjectURL(url), 100)
 }
+
 function exportKMAKE() {
-    if (!music_file) { alert('Please import a music file first.'); return }
-    if (!metadataEverOpened) { openMetadataEditor(() => exportKMAKE()); return }
+    if (!music_file) {
+        alert('Please import a music file first.');
+        return
+    }
+    if (!metadataEverOpened) {
+        openMetadataEditor(() => exportKMAKE());
+        return
+    }
     _runExport(() => {
         var zip = new JSZip()
         zip.file("audiofile.kmakefile", music_file)
         zip.file("lyrics.kmakefile", prepareNewKpoeJSON(false))
-        zip.generateAsync({ type: 'blob', mimeType: 'application/kmake' })
-            .then(content => downloadBlob(content, 'kmake'))
+        zip.generateAsync({
+            type: 'blob',
+            mimeType: 'application/kmake'
+        }).then(content => downloadBlob(content, 'kmake'))
     })
 }
+
 function importKMAKE() {
     const input = document.createElement('input')
     input.type = 'file'
@@ -1149,10 +1380,10 @@ function importKMAKE() {
             reader.readAsArrayBuffer(file)
             reader.onload = readerEvent => {
                 const content = readerEvent.target.result
-                JSZip.loadAsync(content).then(function (zip) {
+                JSZip.loadAsync(content).then(function(zip) {
                     const audioFile = zip.file("audiofile.kmakefile")
                     if (audioFile) {
-                        audioFile.async("blob").then(function (content) {
+                        audioFile.async("blob").then(function(content) {
                             const file = new File([content], 'audiofile.mp3')
                             const fileList = new DataTransfer()
                             fileList.items.add(file)
@@ -1162,7 +1393,7 @@ function importKMAKE() {
                     }
                     const lyricsFile = zip.file("lyrics.kmakefile")
                     if (lyricsFile) {
-                        lyricsFile.async("string").then(function (content) {
+                        lyricsFile.async("string").then(function(content) {
                             const file = new File([content], 'lyrics.json')
                             const fileList = new DataTransfer()
                             fileList.items.add(file)
@@ -1178,7 +1409,7 @@ function importKMAKE() {
     }
     input.click()
 }
-document.addEventListener('keydown', function (event) {
+document.addEventListener('keydown', function(event) {
     if (document.activeElement === elem_lyricsInput) return
     if (event.keyCode === 13) {
         event.preventDefault()
@@ -1200,7 +1431,10 @@ setInterval(() => {
     // Find the current syllable
     let currentSylRef = null;
     for (let i = 0; i < allSyllables.length; i++) {
-        const { lineIdx, syllabusIdx } = allSyllables[i];
+        const {
+            lineIdx,
+            syllabusIdx
+        } = allSyllables[i];
         const syl = tempLyrics[lineIdx]?.syllabus[syllabusIdx];
         if (!syl || !syl.isDone) break;
         if ((syl.time || 0) > time + EPS) {
@@ -1209,9 +1443,7 @@ setInterval(() => {
         }
         currentSylRef = allSyllables[i];
     }
-    const sameRef = _lastSylRef && currentSylRef &&
-        _lastSylRef.lineIdx === currentSylRef.lineIdx &&
-        _lastSylRef.syllabusIdx === currentSylRef.syllabusIdx;
+    const sameRef = _lastSylRef && currentSylRef && _lastSylRef.lineIdx === currentSylRef.lineIdx && _lastSylRef.syllabusIdx === currentSylRef.syllabusIdx;
     if (!sameRef) {
         // Update playing-word
         const playingEl = document.querySelector('.playing-word');
@@ -1224,8 +1456,7 @@ setInterval(() => {
             }
         }
         // Update past-word
-        const allSylElems = Array.from(document.querySelectorAll('.lyrics-word'))
-            .filter(el => el.id.startsWith('syl-'));
+        const allSylElems = Array.from(document.querySelectorAll('.lyrics-word')).filter(el => el.id.startsWith('syl-'));
         const currentElem = currentSyl?.element;
         const currentElemIdx = currentElem ? allSylElems.indexOf(currentElem) : -1;
         allSylElems.forEach((el, idx) => {
@@ -1248,6 +1479,7 @@ setInterval(() => {
             }
             if (newLineEl && !newLineEl.classList.contains('tagged-line')) {
                 newLineEl.classList.add('playing-line');
+
                 function getValidLine(element, direction) {
                     let cur = element;
                     while (cur) {
@@ -1281,14 +1513,17 @@ setInterval(() => {
     }
 }, 1);
 // ======= END OF UPDATED INTERVAL =======
-elem_musicInput.addEventListener('change', function () {
+elem_musicInput.addEventListener('change', function() {
     const file = this.files[0]
     if (!file) return
     const objectURL = URL.createObjectURL(file)
     player.source = {
         type: 'audio',
         title: 'Local File',
-        sources: [{ src: objectURL, type: file.type || 'audio/mp3' }],
+        sources: [{
+            src: objectURL,
+            type: file.type || 'audio/mp3'
+        }],
     }
     music_file = file
     document.getElementById('music-title').innerText = "Unknown Title"
@@ -1297,7 +1532,7 @@ elem_musicInput.addEventListener('change', function () {
     document.getElementById('music-album-art').src = ''
     filename = file.name.split('.').slice(0, -1).join('.')
     jsmediatags.read(file, {
-        onSuccess: function (tag) {
+        onSuccess: function(tag) {
             const title = tag.tags.title || "Unknown Title"
             const artist = tag.tags.artist || "Unknown Artist"
             const album = tag.tags.album || "Unknown Album"
@@ -1322,7 +1557,7 @@ elem_musicInput.addEventListener('change', function () {
             }
             _scheduleSessionSave()
         },
-        onError: function (error) {
+        onError: function(error) {
             console.error('Media tags error:', error)
         }
     })
@@ -1332,10 +1567,10 @@ elem_musicInput.addEventListener('change', function () {
     }
     _scheduleSessionSave()
 })
-player.on('play', function () {
+player.on('play', function() {
     goBackIndex = 0
 })
-document.addEventListener('keydown', function (event) {
+document.addEventListener('keydown', function(event) {
     if (document.activeElement === elem_lyricsInput) return
     if (event.keyCode === 32) {
         if (document.activeElement.tagName === 'BUTTON' || document.activeElement === elem_musicPlayer) return
@@ -1343,7 +1578,7 @@ document.addEventListener('keydown', function (event) {
         event.preventDefault()
     }
 })
-document.addEventListener('keydown', function (event) {
+document.addEventListener('keydown', function(event) {
     if (document.activeElement === elem_lyricsInput) return
     if (event.keyCode === 37) goBackIndex -= 1
     if (event.keyCode === 39) {
@@ -1353,14 +1588,17 @@ document.addEventListener('keydown', function (event) {
     if (event.keyCode === 37 || event.keyCode === 39) {
         const targetIndex = currentWordIndex + goBackIndex
         if (targetIndex >= 0 && targetIndex < allSyllables.length) {
-            const { lineIdx, syllabusIdx } = allSyllables[targetIndex]
+            const {
+                lineIdx,
+                syllabusIdx
+            } = allSyllables[targetIndex]
             const syl = tempLyrics[lineIdx]?.syllabus[syllabusIdx]
             if (syl && syl.time !== undefined) player.currentTime = syl.time / 1000
         }
     }
 })
 // Undo / Redo keyboard bindings
-document.addEventListener('keydown', function (event) {
+document.addEventListener('keydown', function(event) {
     // The lyrics textarea keeps its native Ctrl+Z (text undo → auto re-parse)
     if (document.activeElement === elem_lyricsInput) return
     const mod = event.ctrlKey || event.metaKey
@@ -1375,14 +1613,19 @@ document.addEventListener('keydown', function (event) {
     }
 })
 // Alt+↑ / Alt+↓ — move the selected word's line up/down, keeping all timing
-document.addEventListener('keydown', function (event) {
+document.addEventListener('keydown', function(event) {
     const tag = (document.activeElement?.tagName || '').toUpperCase()
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
     if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
-    if (event.key === 'ArrowUp') { event.preventDefault(); moveSelectedLine(-1) }
-    else if (event.key === 'ArrowDown') { event.preventDefault(); moveSelectedLine(1) }
+    if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        moveSelectedLine(-1)
+    } else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        moveSelectedLine(1)
+    }
 })
-document.addEventListener('click', function (event) {
+document.addEventListener('click', function(event) {
     if (event.target.classList.contains('lyrics-word')) {
         const el = event.target
         // Syllable spans use id format: syl-{lineIdx}-{syllabusIdx}
@@ -1395,10 +1638,13 @@ document.addEventListener('click', function (event) {
         }
     }
 })
-document.getElementById('properties-start')?.addEventListener('input', function (event) {
+document.getElementById('properties-start')?.addEventListener('input', function(event) {
     _commitTypedEdit()
     if (selectedWordIndex === -1 || selectedWordIndex >= allSyllables.length) return
-    const { lineIdx, syllabusIdx } = allSyllables[selectedWordIndex]
+    const {
+        lineIdx,
+        syllabusIdx
+    } = allSyllables[selectedWordIndex]
     const line = tempLyrics[lineIdx]
     const syl = line?.syllabus[syllabusIdx]
     if (!syl) return
@@ -1408,10 +1654,13 @@ document.getElementById('properties-start')?.addEventListener('input', function 
     updateTimeDisplays()
     _scheduleSessionSave()
 })
-document.getElementById('properties-length')?.addEventListener('input', function (event) {
+document.getElementById('properties-length')?.addEventListener('input', function(event) {
     _commitTypedEdit()
     if (selectedWordIndex === -1 || selectedWordIndex >= allSyllables.length) return
-    const { lineIdx, syllabusIdx } = allSyllables[selectedWordIndex]
+    const {
+        lineIdx,
+        syllabusIdx
+    } = allSyllables[selectedWordIndex]
     const line = tempLyrics[lineIdx]
     const syl = line?.syllabus[syllabusIdx]
     if (!syl) return
@@ -1421,17 +1670,23 @@ document.getElementById('properties-length')?.addEventListener('input', function
     updateTimeDisplays()
     _scheduleSessionSave()
 })
-document.getElementById('properties-preview')?.addEventListener('click', function (event) {
+document.getElementById('properties-preview')?.addEventListener('click', function(event) {
     if (selectedWordIndex === -1 || selectedWordIndex >= allSyllables.length) return
-    const { lineIdx, syllabusIdx } = allSyllables[selectedWordIndex]
+    const {
+        lineIdx,
+        syllabusIdx
+    } = allSyllables[selectedWordIndex]
     const syl = tempLyrics[lineIdx]?.syllabus[syllabusIdx]
     if (!syl) return
     player.currentTime = (syl.time || 0) / 1000
     player.play()
-    setTimeout(() => { player.pause() }, (syl.duration || 1000) + 300)
+    setTimeout(() => {
+        player.pause()
+    }, (syl.duration || 1000) + 300)
 })
 // App "load" handling — hides the spinner and offers session restore
 let _loadHandled = false
+
 function _onAppLoad() {
     if (_loadHandled) return
     _loadHandled = true
@@ -1454,10 +1709,15 @@ if (typeof tippy !== 'undefined') {
         placement: 'bottom-start',
         offset: [0, 2],
     }
+
     function menuHooks(id) {
         return {
-            onShow() { document.getElementById(id)?.setAttribute('data-active', 'true') },
-            onHide() { document.getElementById(id)?.removeAttribute('data-active') },
+            onShow() {
+                document.getElementById(id)?.setAttribute('data-active', 'true')
+            },
+            onHide() {
+                document.getElementById(id)?.removeAttribute('data-active')
+            },
         }
     }
     //  File
@@ -1496,7 +1756,11 @@ if (typeof tippy !== 'undefined') {
         <i data-lucide="subtitles" class="menu-icon"></i> Export Enhanced LRC
     </button>
 </div>`,
-        onMount(instance) { lucide.createIcons({ nodes: [instance.popper] }) },
+        onMount(instance) {
+            lucide.createIcons({
+                nodes: [instance.popper]
+            })
+        },
     })
     //  Song
     tippy('#menu-song', {
@@ -1522,7 +1786,11 @@ if (typeof tippy !== 'undefined') {
         <i data-lucide="rotate-ccw" class="menu-icon"></i> Reset All
     </button>
 </div>`,
-        onMount(instance) { lucide.createIcons({ nodes: [instance.popper] }) },
+        onMount(instance) {
+            lucide.createIcons({
+                nodes: [instance.popper]
+            })
+        },
     })
     //  View
     tippy('#menu-view', {
@@ -1550,7 +1818,9 @@ if (typeof tippy !== 'undefined') {
                 if (cb) cb.checked = document.getElementById('lyrics-content')?.classList.contains('preview') ?? false
             })
         },
-        onHide() { document.getElementById('menu-view')?.removeAttribute('data-active') },
+        onHide() {
+            document.getElementById('menu-view')?.removeAttribute('data-active')
+        },
     })
     //  Help
     tippy('#menu-help', {
@@ -1569,7 +1839,11 @@ if (typeof tippy !== 'undefined') {
         <i data-lucide="github" class="menu-icon"></i> GitHub Repository
     </button>
 </div>`,
-        onMount(instance) { lucide.createIcons({ nodes: [instance.popper] }) },
+        onMount(instance) {
+            lucide.createIcons({
+                nodes: [instance.popper]
+            })
+        },
     })
 }
 // ============================================================
@@ -1582,6 +1856,7 @@ function msToDisplayTime(ms) {
     const mill = totalMs % 1000
     return `${min}:${String(sec).padStart(2, '0')}.${String(mill).padStart(3, '0')}`
 }
+
 function updateTimeDisplays() {
     const startVal = parseInt(document.getElementById('properties-start')?.value) || 0
     const lengthVal = parseInt(document.getElementById('properties-length')?.value) || 0
@@ -1590,9 +1865,13 @@ function updateTimeDisplays() {
     if (sd) sd.textContent = msToDisplayTime(startVal)
     if (ld) ld.textContent = msToDisplayTime(lengthVal)
 }
+
 function nudgeProperty(field, delta) {
     if (selectedWordIndex === -1 || selectedWordIndex >= allSyllables.length) return
-    const { lineIdx, syllabusIdx } = allSyllables[selectedWordIndex]
+    const {
+        lineIdx,
+        syllabusIdx
+    } = allSyllables[selectedWordIndex]
     const line = tempLyrics[lineIdx]
     const syl = line?.syllabus[syllabusIdx]
     if (!syl) return
@@ -1600,7 +1879,7 @@ function nudgeProperty(field, delta) {
     const input = document.getElementById(inputId)
     if (!input) return
     const newVal = Math.max(0, (parseInt(input.value) || 0) + delta)
-    if (newVal === (parseInt(input.value) || 0)) return   // nothing changed — don't pollute history
+    if (newVal === (parseInt(input.value) || 0)) return // nothing changed — don't pollute history
     pushUndo()
     input.value = newVal
     if (field === 'start') {
@@ -1614,9 +1893,13 @@ function nudgeProperty(field, delta) {
     updateTimeDisplays()
     _scheduleSessionSave()
 }
+
 function syncWordToCursor(field) {
     if (selectedWordIndex === -1 || selectedWordIndex >= allSyllables.length) return
-    const { lineIdx, syllabusIdx } = allSyllables[selectedWordIndex]
+    const {
+        lineIdx,
+        syllabusIdx
+    } = allSyllables[selectedWordIndex]
     const line = tempLyrics[lineIdx]
     const syl = line?.syllabus[syllabusIdx]
     if (!syl) return
@@ -1633,9 +1916,12 @@ function syncWordToCursor(field) {
     _scheduleSessionSave()
     showToast(`Synced to ${msToDisplayTime(timeMs)}`)
 }
+
 function changeSelectedLineAgent(newAlias) {
     if (selectedWordIndex === -1 || selectedWordIndex >= allSyllables.length) return
-    const { lineIdx } = allSyllables[selectedWordIndex]
+    const {
+        lineIdx
+    } = allSyllables[selectedWordIndex]
     const line = tempLyrics[lineIdx]
     if (!line || !line.element) return
     const oldAlias = line.element.singer || 'v1'
@@ -1694,7 +1980,8 @@ function unstampWord() {
     showToast('Timing cleared — press Enter to re-stamp')
 }
 // Inject the Unstamp button into the Properties panel button bar (index.html untouched)
-;(function injectUnstampButton() {
+;
+(function injectUnstampButton() {
     const anchor = document.getElementById('properties-preview')
     if (!anchor || document.getElementById('unstamp-btn')) return
     const btn = document.createElement('button')
@@ -1729,15 +2016,13 @@ function moveSelectedLine(direction) {
         showToast(direction < 0 ? 'Already at the top' : 'Already at the bottom', 2000, 'error')
         return
     }
-    const selSylText = selEntry
-        ? tempLyrics[selEntry.lineIdx]?.syllabus[selEntry.syllabusIdx]?.text
-        : null
+    const selSylText = selEntry ? tempLyrics[selEntry.lineIdx]?.syllabus[selEntry.syllabusIdx]?.text : null
     pushUndo()
     const tmp = lines[anchorTextIdx]
     lines[anchorTextIdx] = lines[targetIdx]
     lines[targetIdx] = tmp
     elem_lyricsInput.value = lines.join('\n')
-    parseLyrics()   // LCS matching carries every word's timing into the new order
+    parseLyrics() // LCS matching carries every word's timing into the new order
     // Re-select the moved word so you can keep nudging / moving it
     if (selSylText != null) {
         const newLineIdx = tempLyrics.findIndex(l => !l.isTaggedLine && l.lineIndex === targetIdx)
@@ -1764,6 +2049,7 @@ const undoStack = []
 const redoStack = []
 const MAX_UNDO = 100
 let _pendingFieldSnapshot = null
+
 function _captureState() {
     return {
         wordIndex: currentWordIndex,
@@ -1772,27 +2058,35 @@ function _captureState() {
         syls: allSyllables.map(e => {
             if (e.isEndOfLine) return null
             const s = tempLyrics[e.lineIdx]?.syllabus[e.syllabusIdx]
-            return s ? { t: s.time || 0, d: s.duration || 0, done: !!s.isDone } : null
+            return s ? {
+                t: s.time || 0,
+                d: s.duration || 0,
+                done: !!s.isDone
+            } : null
         })
     }
 }
+
 function pushUndo(snapshot) {
     undoStack.push(snapshot || _captureState())
     if (undoStack.length > MAX_UNDO) undoStack.shift()
     redoStack.length = 0
 }
+
 function undoAction() {
     if (!undoStack.length) return
     redoStack.push(_captureState())
     _applySnapshot(undoStack.pop())
     showToast('Undo')
 }
+
 function redoAction() {
     if (!redoStack.length) return
     undoStack.push(_captureState())
     _applySnapshot(redoStack.pop())
     showToast('Redo')
 }
+
 function _applySnapshot(snap) {
     const snapCount = snap.syls.filter(Boolean).length
     const textChanged = elem_lyricsInput.value !== snap.text
@@ -1840,9 +2134,13 @@ function _applySnapshot(snap) {
     _refreshSelectionPanel()
     _scheduleSessionSave()
 }
+
 function _refreshSelectionPanel() {
     if (selectedWordIndex < 0 || selectedWordIndex >= allSyllables.length) return
-    const { lineIdx, syllabusIdx } = allSyllables[selectedWordIndex]
+    const {
+        lineIdx,
+        syllabusIdx
+    } = allSyllables[selectedWordIndex]
     const line = tempLyrics[lineIdx]
     const syl = line?.syllabus[syllabusIdx]
     if (!syl) return
@@ -1862,22 +2160,28 @@ function _commitTypedEdit() {
         pushUndo(_pendingFieldSnapshot)
         _pendingFieldSnapshot = null
     }
-}
-;['properties-start', 'properties-length'].forEach(id => {
+};
+['properties-start', 'properties-length'].forEach(id => {
     const el = document.getElementById(id)
     if (!el) return
-    el.addEventListener('focus', () => { _pendingFieldSnapshot = _captureState() })
-    el.addEventListener('blur', () => { _pendingFieldSnapshot = null })
+    el.addEventListener('focus', () => {
+        _pendingFieldSnapshot = _captureState()
+    })
+    el.addEventListener('blur', () => {
+        _pendingFieldSnapshot = null
+    })
 })
 // ============================================================
 // AUTO-SAVE & SESSION RESTORE
 // ============================================================
 const SESSION_KEY = 'kmake-autosave-v1'
 let _sessionSaveTimer = null
+
 function _scheduleSessionSave() {
     if (_sessionSaveTimer) clearTimeout(_sessionSaveTimer)
     _sessionSaveTimer = setTimeout(_saveSessionNow, 800)
 }
+
 function _serializeLyrics() {
     return tempLyrics.map(line => ({
         time: line.time || 0,
@@ -1886,9 +2190,11 @@ function _serializeLyrics() {
         lineIndex: line.lineIndex ?? 0,
         isTaggedLine: !!line.isTaggedLine,
         tag: line.tag || null,
-        element: line.element
-            ? { key: line.element.key, singer: line.element.singer, songPartIndex: line.element.songPartIndex }
-            : null,
+        element: line.element ? {
+            key: line.element.key,
+            singer: line.element.singer,
+            songPartIndex: line.element.songPartIndex
+        } : null,
         syllabus: (line.syllabus || []).map(s => ({
             time: s.time || 0,
             duration: s.duration || 0,
@@ -1897,8 +2203,12 @@ function _serializeLyrics() {
         }))
     }))
 }
+
 function _saveSessionNow() {
-    if (_sessionSaveTimer) { clearTimeout(_sessionSaveTimer); _sessionSaveTimer = null }
+    if (_sessionSaveTimer) {
+        clearTimeout(_sessionSaveTimer);
+        _sessionSaveTimer = null
+    }
     try {
         const hasContent = (elem_lyricsInput.value || '').trim() !== '' || tempLyrics.length > 0
         if (!hasContent) {
@@ -1912,7 +2222,9 @@ function _saveSessionNow() {
             currentWordIndex: currentWordIndex,
             metadataEverOpened: metadataEverOpened,
             lyricsText: elem_lyricsInput.value,
-            metadata: { ...metadata },
+            metadata: {
+                ...metadata
+            },
             tempLyrics: _serializeLyrics()
         }
         localStorage.setItem(SESSION_KEY, JSON.stringify(payload))
@@ -1920,6 +2232,7 @@ function _saveSessionNow() {
         console.warn('Autosave failed:', e)
     }
 }
+
 function _timeAgo(ts) {
     const s = Math.floor((Date.now() - ts) / 1000)
     if (s < 60) return 'just now'
@@ -1930,9 +2243,14 @@ function _timeAgo(ts) {
     const d = Math.floor(h / 24)
     return d + ' day' + (d > 1 ? 's' : '') + ' ago'
 }
+
 function _checkSessionRestore() {
     let data = null
-    try { data = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null') } catch { return }
+    try {
+        data = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null')
+    } catch {
+        return
+    }
     if (!data || !(data.tempLyrics || []).length) return
     if (!(data.lyricsText || '').trim() && !(data.tempLyrics || []).length) return
     const lyricLines = (data.tempLyrics || []).filter(l => !l.isTaggedLine)
@@ -1979,24 +2297,39 @@ function _checkSessionRestore() {
 </div>`
     document.body.appendChild(modal)
     window._pendingSessionData = data
-    requestAnimationFrame(() => { modal.classList.add('visible'); if (typeof lucide !== 'undefined') lucide.createIcons() })
+    requestAnimationFrame(() => {
+        modal.classList.add('visible');
+        if (typeof lucide !== 'undefined') lucide.createIcons()
+    })
 }
+
 function closeRestoreModal() {
     const m = document.getElementById('restore-modal')
-    if (m) { m.classList.remove('visible'); setTimeout(() => m.remove(), 200) }
+    if (m) {
+        m.classList.remove('visible');
+        setTimeout(() => m.remove(), 200)
+    }
 }
+
 function discardSession() {
     localStorage.removeItem(SESSION_KEY)
     window._pendingSessionData = null
     closeRestoreModal()
     showToast('Session discarded')
 }
+
 function restoreSession() {
     const data = window._pendingSessionData
     window._pendingSessionData = null
-    if (!data) { closeRestoreModal(); return }
+    if (!data) {
+        closeRestoreModal();
+        return
+    }
     try {
-        metadata = { ...metadata, ...(data.metadata || {}) }
+        metadata = {
+            ...metadata,
+            ...(data.metadata || {})
+        }
         filename = data.filename || ''
         metadataEverOpened = !!data.metadataEverOpened
         tempLyrics = (data.tempLyrics || []).map(line => ({
@@ -2006,7 +2339,11 @@ function restoreSession() {
             lineIndex: line.lineIndex ?? 0,
             isTaggedLine: !!line.isTaggedLine,
             tag: line.tag || null,
-            element: line.element || (line.isTaggedLine ? null : { key: '', singer: 'v1', songPartIndex: -1 }),
+            element: line.element || (line.isTaggedLine ? null : {
+                key: '',
+                singer: 'v1',
+                songPartIndex: -1
+            }),
             lineElement: null,
             syllabus: (line.syllabus || []).map(s => ({
                 time: s.time || 0,
@@ -2040,9 +2377,13 @@ function restoreSession() {
 // ============================================================
 function safeReset() {
     const hasWork = (elem_lyricsInput.value || '').trim() !== '' || tempLyrics.length > 0 || music_file
-    if (!hasWork) { reset(); return }
+    if (!hasWork) {
+        reset();
+        return
+    }
     openResetConfirm()
 }
+
 function openResetConfirm() {
     const existing = document.getElementById('reset-confirm-modal')
     if (existing) existing.remove()
@@ -2069,12 +2410,20 @@ function openResetConfirm() {
     </div>
 </div>`
     document.body.appendChild(modal)
-    requestAnimationFrame(() => { modal.classList.add('visible'); if (typeof lucide !== 'undefined') lucide.createIcons() })
+    requestAnimationFrame(() => {
+        modal.classList.add('visible');
+        if (typeof lucide !== 'undefined') lucide.createIcons()
+    })
 }
+
 function closeResetConfirm() {
     const m = document.getElementById('reset-confirm-modal')
-    if (m) { m.classList.remove('visible'); setTimeout(() => m.remove(), 200) }
+    if (m) {
+        m.classList.remove('visible');
+        setTimeout(() => m.remove(), 200)
+    }
 }
+
 function executeReset() {
     closeResetConfirm()
     reset()
@@ -2112,8 +2461,12 @@ function openAgentManager() {
 `
     document.body.appendChild(modal)
     renderAgentList()
-    requestAnimationFrame(() => { modal.classList.add('visible'); lucide.createIcons() })
+    requestAnimationFrame(() => {
+        modal.classList.add('visible');
+        lucide.createIcons()
+    })
 }
+
 function renderAgentList() {
     const list = document.getElementById('agent-list')
     if (!list) return
@@ -2122,6 +2475,7 @@ function renderAgentList() {
         appendAgentRow(list, alias, agent.name || '', agent.type || 'person')
     })
 }
+
 function appendAgentRow(list, alias, name, type) {
     const row = document.createElement('div')
     row.className = 'agent-row'
@@ -2148,8 +2502,11 @@ function appendAgentRow(list, alias, name, type) {
 <button class="btn-remove-agent" title="Remove agent" onclick="this.closest('.agent-row').remove()"><i data-lucide="trash-2"></i></button>
 `
     list.appendChild(row)
-    if (typeof lucide !== 'undefined') lucide.createIcons({ nodes: [row] })
+    if (typeof lucide !== 'undefined') lucide.createIcons({
+        nodes: [row]
+    })
 }
+
 function addAgentRow() {
     const list = document.getElementById('agent-list')
     if (!list) return
@@ -2159,6 +2516,7 @@ function addAgentRow() {
     appendAgentRow(list, 'v' + n, '', 'person')
     list.lastElementChild?.querySelector('.agent-alias-input')?.focus()
 }
+
 function saveAgents() {
     const rows = document.querySelectorAll('#agent-list .agent-row')
     const newAgents = {}
@@ -2167,9 +2525,21 @@ function saveAgents() {
         const alias = row.querySelector('.agent-alias-input').value.trim()
         const name = row.querySelector('.agent-name-input').value.trim()
         const type = row.querySelector('.agent-type-input').value
-        if (!alias) { showToast('Alias cannot be empty', 3000, 'error'); hasError = true; return }
-        if (newAgents[alias]) { showToast(`Duplicate alias: ${alias}`, 3000, 'error'); hasError = true; return }
-        newAgents[alias] = { type, name, alias }
+        if (!alias) {
+            showToast('Alias cannot be empty', 3000, 'error');
+            hasError = true;
+            return
+        }
+        if (newAgents[alias]) {
+            showToast(`Duplicate alias: ${alias}`, 3000, 'error');
+            hasError = true;
+            return
+        }
+        newAgents[alias] = {
+            type,
+            name,
+            alias
+        }
     })
     if (hasError) return
     const oldAliases = new Set(Object.keys(metadata.agents))
@@ -2184,19 +2554,17 @@ function saveAgents() {
         showToast('Agents saved')
     }
 }
+
 function updateAgentDeclarationsInText() {
     const currentText = elem_lyricsInput.value
     const lines = currentText.split('\n')
     const nonAgentLines = lines.filter(l => !extractAgentDeclaration(l.trim()))
-    const agentDecls = Object.values(metadata.agents).map(agent =>
-        agent.name
-            ? `[agent:${agent.type}=${agent.alias}:${agent.name}]`
-            : `[agent:${agent.type}=${agent.alias}]`
-    )
+    const agentDecls = Object.values(metadata.agents).map(agent => agent.name ? `[agent:${agent.type}=${agent.alias}:${agent.name}]` : `[agent:${agent.type}=${agent.alias}]`)
     let contentStart = 0
     while (contentStart < nonAgentLines.length && nonAgentLines[contentStart].trim() === '') contentStart++
     elem_lyricsInput.value = [...agentDecls, '', ...nonAgentLines.slice(contentStart)].join('\n')
 }
+
 function closeAgentManager() {
     const modal = document.getElementById('agent-manager-modal')
     if (!modal) return
@@ -2237,8 +2605,12 @@ function openAboutModal() {
     </div>
 </div>`
     document.body.appendChild(modal)
-    requestAnimationFrame(() => { modal.classList.add('visible'); lucide.createIcons() })
+    requestAnimationFrame(() => {
+        modal.classList.add('visible');
+        lucide.createIcons()
+    })
 }
+
 function closeAboutModal() {
     const modal = document.getElementById('about-modal')
     if (!modal) return
@@ -2255,22 +2627,15 @@ let _pendingExportFn = null
 async function detectLanguage() {
     const lines = elem_lyricsInput.value.split('\n')
     const sortedAliases = Object.keys(metadata.agents).sort((a, b) => b.length - a.length)
-    const plainLines = lines
-        .map(l => l.trim())
-        .filter(t => t && !isValidTag(t) && !extractAgentDeclaration(t))
-        .map(t => {
-            for (const alias of sortedAliases) {
-                if (t.startsWith(alias + ':')) return t.slice(alias.length + 1).trim()
-            }
-            return t
-        })
-        .map(t => t.replace(/\]/g, ''))
+    const plainLines = lines.map(l => l.trim()).filter(t => t && !isValidTag(t) && !extractAgentDeclaration(t)).map(t => {
+        for (const alias of sortedAliases) {
+            if (t.startsWith(alias + ':')) return t.slice(alias.length + 1).trim()
+        }
+        return t
+    }).map(t => t.replace(/\]/g, ''))
     const sample = plainLines.slice(0, 12).join(' ').substring(0, 400).trim()
     if (!sample) return null
-    const res = await fetch(
-        'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q='
-        + encodeURIComponent(sample)
-    )
+    const res = await fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=' + encodeURIComponent(sample))
     if (!res.ok) throw new Error('HTTP ' + res.status)
     const data = await res.json()
     return (Array.isArray(data) && data[2]) ? data[2] : null
@@ -2278,7 +2643,10 @@ async function detectLanguage() {
 async function detectAndFillLanguage() {
     const btn = document.getElementById('btn-detect-lang')
     const input = document.getElementById('meta-language')
-    if (btn) { btn.disabled = true; btn.textContent = 'Detecting…' }
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Detecting…'
+    }
     try {
         const lang = await detectLanguage()
         if (lang) {
@@ -2293,7 +2661,9 @@ async function detectAndFillLanguage() {
         if (btn) {
             btn.disabled = false
             btn.innerHTML = '<i data-lucide="scan-text" style="width:13px;height:13px"></i> Detect'
-            if (typeof lucide !== 'undefined') lucide.createIcons({ nodes: [btn] })
+            if (typeof lucide !== 'undefined') lucide.createIcons({
+                nodes: [btn]
+            })
         }
     }
 }
@@ -2302,10 +2672,12 @@ async function _runExport(exportFn) {
         try {
             const lang = await detectLanguage()
             if (lang) metadata.language = lang
-        } catch { /* best-effort */ }
+        } catch {
+            /* best-effort */ }
     }
     exportFn()
 }
+
 function openMetadataEditor(exportCallback = null) {
     metadataEverOpened = true
     _pendingExportFn = exportCallback
@@ -2371,8 +2743,12 @@ function openMetadataEditor(exportCallback = null) {
 </div>
 `
     document.body.appendChild(modal)
-    requestAnimationFrame(() => { modal.classList.add('visible'); lucide.createIcons() })
+    requestAnimationFrame(() => {
+        modal.classList.add('visible');
+        lucide.createIcons()
+    })
 }
+
 function saveMetadata() {
     metadata.title = document.getElementById('meta-title').value.trim()
     metadata.artist = document.getElementById('meta-artist').value.trim()
@@ -2386,14 +2762,20 @@ function saveMetadata() {
     _pendingExportFn = null
     closeMetadataEditor()
     _scheduleSessionSave()
-    if (cb) { cb() } else { showToast('Metadata saved') }
+    if (cb) {
+        cb()
+    } else {
+        showToast('Metadata saved')
+    }
 }
+
 function closeMetadataEditor() {
     const modal = document.getElementById('metadata-modal')
     if (!modal) return
     modal.classList.remove('visible')
     setTimeout(() => modal.remove(), 200)
 }
+
 function escapeHtmlAttr(str) {
     return (str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
@@ -2544,8 +2926,12 @@ v2:Be]neath the stars</div>
 </div>
 `
     document.body.appendChild(modal)
-    requestAnimationFrame(() => { modal.classList.add('visible'); lucide.createIcons() })
+    requestAnimationFrame(() => {
+        modal.classList.add('visible');
+        lucide.createIcons()
+    })
 }
+
 function switchTutorialTab(btn, tabId) {
     document.querySelectorAll('.tutorial-tab').forEach(t => t.classList.remove('active'))
     document.querySelectorAll('.tutorial-tab-panel').forEach(p => p.classList.remove('active'))
@@ -2553,6 +2939,7 @@ function switchTutorialTab(btn, tabId) {
     const panel = document.getElementById(tabId)
     if (panel) panel.classList.add('active')
 }
+
 function closeTutorial() {
     const modal = document.getElementById('tutorial-modal')
     if (!modal) return
@@ -2592,23 +2979,32 @@ function showToast(message, duration = 3000, type = 'default') {
         const header = document.querySelector('.buttons-actions')
         if (header) header.after(hint)
         else document.body.appendChild(hint)
-        if (typeof lucide !== 'undefined') lucide.createIcons({ nodes: [hint] })
+        if (typeof lucide !== 'undefined') lucide.createIcons({
+            nodes: [hint]
+        })
     })
     setTimeout(() => {
         const el = document.getElementById('kmake-hint-badge')
-        if (el) { el.classList.add('fade-out'); setTimeout(() => el?.remove(), 400) }
+        if (el) {
+            el.classList.add('fade-out');
+            setTimeout(() => el?.remove(), 400)
+        }
         localStorage.setItem('kmake-hint-dismissed', '1')
     }, 8000)
 })()
 // ============================================================
 // AGENT USAGE HIGHLIGHT IN LYRICS TEXTAREA
 // ============================================================
-elem_lyricsInput.addEventListener('input', function () {
+elem_lyricsInput.addEventListener('input', function() {
     const lines = this.value.split('\n')
     const detectedAgents = {}
     lines.forEach(l => {
         const d = extractAgentDeclaration(l.trim())
-        if (d) detectedAgents[d.alias] = { type: d.type, name: d.name, alias: d.alias }
+        if (d) detectedAgents[d.alias] = {
+            type: d.type,
+            name: d.name,
+            alias: d.alias
+        }
     })
     if (Object.keys(detectedAgents).length > 0) {
         Object.assign(metadata.agents, detectedAgents)
