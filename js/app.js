@@ -1468,14 +1468,17 @@ setInterval(() => {
         // Update line classes only when line changes
         const newLineEl = currentSyl?.element?.closest('.lyrics-line');
         if (newLineEl !== _lastLineEl) {
-            // 1) SWEEP — clear every line-state class first, so no stale
-            //    playing/next/previous class can survive a seek, a re-parse,
-            //    or a #tag sitting between two lyric lines.
+            // STEP 1 — sweep every stale line-state class. This MUST run before
+            // the re-assignment below. (If it runs after, it wipes playing-line
+            // off the current line and only the next line survives — the
+            // "only the line below is visible" symptom.)
             elem_lyricsContent.querySelectorAll('.playing-line, .next-playing-line, .next-next-playing-line, .previous-playing-line')
                 .forEach(el => el.classList.remove('playing-line', 'next-playing-line', 'next-next-playing-line', 'previous-playing-line'));
-            // 2) ASSIGN — fresh state for the new line and its neighbors.
+
+            // STEP 2 — assign fresh classes
             if (newLineEl && !newLineEl.classList.contains('tagged-line')) {
                 newLineEl.classList.add('playing-line');
+
                 function getValidLine(element, direction) {
                     let cur = element;
                     while (cur) {
@@ -1484,6 +1487,7 @@ setInterval(() => {
                     }
                     return null;
                 }
+
                 const nextLine = getValidLine(newLineEl, 'next');
                 if (nextLine) {
                     nextLine.classList.add('next-playing-line');
@@ -1492,13 +1496,13 @@ setInterval(() => {
                 }
                 const prevLine = getValidLine(newLineEl, 'previous');
                 if (prevLine) prevLine.classList.add('previous-playing-line');
-                // Auto-center only applies to the flowing themes — jd2014 and
-                // karafun position their lines absolutely, so scrolling is useless there
-                const theme = elem_lyricsContent.getAttribute('data-theme');
-                if (elem_lyricsContent.classList.contains('preview') && theme !== 'jd2014' && theme !== 'karafun') {
-                    elem_lyricsContent.scrollTop = newLineEl.offsetTop - elem_lyricsContent.clientHeight / 2 + 120;
+
+                if (document.getElementById('lyrics-content').classList.contains('preview')) {
+                    const lyricsContent = document.getElementById('lyrics-content');
+                    lyricsContent.scrollTop = newLineEl.offsetTop - lyricsContent.clientHeight / 2 + 120;
                 }
             }
+
             _lastLineEl = newLineEl;
         }
         _lastSylRef = currentSylRef;
