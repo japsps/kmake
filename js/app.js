@@ -1419,25 +1419,54 @@ document.addEventListener('keydown', function(event) {
         nextWord()
     }
 })
-// ======= UPDATED INTERVAL WITH FLICKER FIX =======
+// ======= LYRICS HIGHLIGHT INTERVAL =======
 let _lastSylRef = null;
 let _lastLineEl = null;
+
+function _getValidLine(element, direction) {
+    let cur = element;
+    while (cur) {
+        cur = direction === 'next' ? cur.nextElementSibling : cur.previousElementSibling;
+        if (cur && !cur.classList.contains('tagged-line')) return cur;
+    }
+    return null;
+}
+
+function _applyLineClasses(newLineEl) {
+    // 1. Sweep every line-state class first — kills the stale next/previous
+    //    classes that caused the overlap glitch (tags, seeks, fast transitions)
+    elem_lyricsContent.querySelectorAll('.playing-line, .next-playing-line, .next-next-playing-line, .previous-playing-line')
+        .forEach(el => el.classList.remove('playing-line', 'next-playing-line', 'next-next-playing-line', 'previous-playing-line'));
+
+    // 2. Re-assign to the current line and its neighbours — this is the half
+    //    that makes the line visible in jd2014/karafun
+    if (newLineEl && !newLineEl.classList.contains('tagged-line')) {
+        newLineEl.classList.add('playing-line');
+        const nextLine = _getValidLine(newLineEl, 'next');
+        if (nextLine) {
+            nextLine.classList.add('next-playing-line');
+            const nextNext = _getValidLine(nextLine, 'next');
+            if (nextNext) nextNext.classList.add('next-next-playing-line');
+        }
+        const prevLine = _getValidLine(newLineEl, 'previous');
+        if (prevLine) prevLine.classList.add('previous-playing-line');
+        if (elem_lyricsContent.classList.contains('preview')) {
+            elem_lyricsContent.scrollTop = newLineEl.offsetTop - elem_lyricsContent.clientHeight / 2 + 120;
+        }
+    }
+}
+
 setInterval(() => {
     if (!tempLyrics || tempLyrics.length === 0) return;
-    if (player.paused) {
-        document.getElementById('lyrics-content').classList.add('paused');
-    } else {
-        document.getElementById('lyrics-content').classList.remove('paused');
-    }
+    elem_lyricsContent.classList.toggle('paused', player.paused);
+
     const time = player.currentTime * 1000;
     const EPS = 1; // 1ms tolerance
+
     // Find the current syllable
     let currentSylRef = null;
     for (let i = 0; i < allSyllables.length; i++) {
-        const {
-            lineIdx,
-            syllabusIdx
-        } = allSyllables[i];
+        const { lineIdx, syllabusIdx } = allSyllables[i];
         const syl = tempLyrics[lineIdx]?.syllabus[syllabusIdx];
         if (!syl || !syl.isDone) break;
         if ((syl.time || 0) > time + EPS) {
@@ -1446,71 +1475,42 @@ setInterval(() => {
         }
         currentSylRef = allSyllables[i];
     }
-    const sameRef = _lastSylRef && currentSylRef && _lastSylRef.lineIdx === currentSylRef.lineIdx && _lastSylRef.syllabusIdx === currentSylRef.syllabusIdx;
+    const currentSyl = currentSylRef ? tempLyrics[currentSylRef.lineIdx]?.syllabus[currentSylRef.syllabusIdx] : null;
+
+    const sameRef = _lastSylRef && currentSylRef &&
+        _lastSylRef.lineIdx === currentSylRef.lineIdx &&
+        _lastSylRef.syllabusIdx === currentSylRef.syllabusIdx;
+
     if (!sameRef) {
-        // Update playing-word
+        // Word-level highlight
         const playingEl = document.querySelector('.playing-word');
         if (playingEl) playingEl.classList.remove('playing-word');
-        let currentSyl = null;
-        if (currentSylRef) {
-            currentSyl = tempLyrics[currentSylRef.lineIdx]?.syllabus[currentSylRef.syllabusIdx];
-            if (currentSyl?.element) {
-                currentSyl.element.classList.add('playing-word');
-            }
-        }
-        // Update past-word
-        const allSylElems = Array.from(document.querySelectorAll('.lyrics-word')).filter(el => el.id.startsWith('syl-'));
-        const currentElem = currentSyl?.element;
-        const currentElemIdx = currentElem ? allSylElems.indexOf(currentElem) : -1;
+        if (currentSyl?.element) currentSyl.element.classList.add('playing-word');
+
+        // Past-word shading
+        const allSylElems = Array.from(document.querySelectorAll('.lyrics-word'))
+            .filter(el => el.id.startsWith('syl-'));
+        const currentElemIdx = currentSyl?.element ? allSylElems.indexOf(currentSyl.element) : -1;
         allSylElems.forEach((el, idx) => {
             el.classList.toggle('past-word', idx < currentElemIdx);
         });
-        // Update line classes only when line changes
-        const newLineEl = currentSyl?.element?.closest('.lyrics-line');
-        if (newLineEl !== _lastLineEl) {
-            // Sweep every line-state class before re-assigning. The old
-            // neighbor-based cleanup only looked at immediate siblings, so a
-            // #section tag or agent line between two lyric lines left stale
-            // next/previous classes behind — which is what rendered two lines
-            // on top of each other in the jd2014/karafun previews.
-            elem_lyricsContent.querySelectorAll('.playing-line, .next-playing-line, .next-next-playing-line, .previous-playing-line')
-                .forEach(el => el.classList.remove('playing-line', 'next-playing-line', 'next-next-playing-line', 'previous-playing-line'));
-            if (newLineEl && !newLineEl.classList.contains('tagged-line')) {
-                newLineEl.classList.add('playing-line');
 
-                function getValidLine(element, direction) {
-                    let cur = element;
-                    while (cur) {
-                        cur = direction === 'next' ? cur.nextElementSibling : cur.previousElementSibling;
-                        if (cur && !cur.classList.contains('tagged-line')) return cur;
-                    }
-                    return null;
-                }
-                const nextLine = getValidLine(newLineEl, 'next');
-                if (nextLine) {
-                    nextLine.classList.add('next-playing-line');
-                    const nextNext = getValidLine(nextLine, 'next');
-                    if (nextNext) nextNext.classList.add('next-next-playing-line');
-                }
-                const prevLine = getValidLine(newLineEl, 'previous');
-                if (prevLine) prevLine.classList.add('previous-playing-line');
-                if (document.getElementById('lyrics-content').classList.contains('preview')) {
-                    const lyricsContent = document.getElementById('lyrics-content');
-                    lyricsContent.scrollTop = newLineEl.offsetTop - lyricsContent.clientHeight / 2 + 120;
-                }
-            }
-            _lastLineEl = newLineEl;
-        }
         _lastSylRef = currentSylRef;
     }
-    // Update played_word for any other logic
-    const currentSyl = currentSylRef ? tempLyrics[currentSylRef.lineIdx]?.syllabus[currentSylRef.syllabusIdx] : null;
+
+    // Line-level classes — on line change, OR self-heal if the class vanished
+    const newLineEl = currentSyl?.element?.closest('.lyrics-line') || null;
+    if (newLineEl !== _lastLineEl || (newLineEl && !newLineEl.classList.contains('playing-line'))) {
+        _applyLineClasses(newLineEl);
+        _lastLineEl = newLineEl;
+    }
+
     const currentText = currentSyl?.text || '';
     if (currentText !== played_word) {
         played_word = currentText;
     }
 }, 1);
-// ======= END OF UPDATED INTERVAL =======
+// ======= END OF LYRICS HIGHLIGHT INTERVAL =======
 elem_musicInput.addEventListener('change', function() {
     const file = this.files[0]
     if (!file) return
