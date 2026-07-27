@@ -162,10 +162,12 @@ function reset() {
     filename = ''
     selectedWordIndex = -1
     played_word = ''
+    music_file = null
     metadataEverOpened = false
     _pendingExportFn = null
     undoStack.length = 0
     redoStack.length = 0
+    localStorage.removeItem(SESSION_KEY)
     metadata = {
         source: "",
         title: "",
@@ -184,6 +186,7 @@ function reset() {
     document.getElementById('music-artist').innerText = ''
     document.getElementById('music-album').innerText = ''
     document.getElementById('music-album-art').src = ''
+    unselect()
 }
 // Rebuilds flat allSyllables cursor from tempLyrics. Must be called after any tempLyrics change.
 function buildAllSyllables() {
@@ -251,6 +254,7 @@ function importYoutube() {
         plyCont.classList.add('plyr--audio')
         elem_navbar.setAttribute('visible', 'false');
         isVisible = false;
+        _scheduleSessionSave()
     } else {
         alert("Invalid YouTube URL");
     }
@@ -380,6 +384,7 @@ function parseNewKpoeFormat(jsonData) {
     rebuildLyricsDOM()
     buildAllSyllables()
     _seekToFirstUnsynced()
+    _scheduleSessionSave()
 }
 function parseLegacyToV2(jsonData) {
     const raw = Array.isArray(jsonData) ? jsonData : (jsonData.lyrics || [])
@@ -483,6 +488,7 @@ function parseLegacyToV2(jsonData) {
     rebuildLyricsDOM()
     buildAllSyllables()
     _seekToFirstUnsynced()
+    _scheduleSessionSave()
 }
 function parseJsonToLyrics(jsonData) {
     const wrapper = Array.isArray(jsonData) ? { lyrics: jsonData } : jsonData
@@ -701,6 +707,7 @@ function parseLyrics() {
     buildAllSyllables()
     _recalcMissingDurations()
     _seekToFirstUnsynced()
+    _scheduleSessionSave()
 }
 function _recalcMissingDurations() {
     for (let i = 0; i < allSyllables.length - 1; i++) {
@@ -714,15 +721,31 @@ function _recalcMissingDurations() {
             if (syl.element) syl.element.style.setProperty('--duration', syl.duration + 'ms')
         }
     }
-    tempLyrics.forEach(line => {
-        if (line.isTaggedLine || !line.syllabus || !line.syllabus.length) return
-        const doneSyls = line.syllabus.filter(s => s.isDone && s.time > 0)
-        if (doneSyls.length === 0) return
-        const earliestTime = Math.min(...doneSyls.map(s => s.time))
-        const latestEnd = Math.max(...doneSyls.map(s => s.time + s.duration))
-        line.time = earliestTime
-        line.duration = latestEnd - earliestTime
-    })
+    tempLyrics.forEach(line => _recalcLineTime(line))
+}
+// Recomputes a line's time/duration from its stamped syllables
+function _recalcLineTime(line) {
+    if (!line || line.isTaggedLine || !line.syllabus || !line.syllabus.length) return
+    const doneSyls = line.syllabus.filter(s => s.isDone && s.time > 0)
+    if (doneSyls.length) {
+        line.time = Math.min(...doneSyls.map(s => s.time))
+        const lastSyl = [...line.syllabus].reverse().find(s => s.isDone)
+        line.duration = lastSyl ? (lastSyl.time + lastSyl.duration - line.time) : 0
+    } else {
+        line.time = 0
+        line.duration = 0
+    }
+}
+// Keeps the previous syllable's duration glued to this syllable's start time
+function _syncPrevDuration(lineIdx, syllabusIdx) {
+    if (syllabusIdx <= 0) return
+    const line = tempLyrics[lineIdx]
+    const prev = line?.syllabus[syllabusIdx - 1]
+    const cur = line?.syllabus[syllabusIdx]
+    if (prev?.isDone && cur?.isDone && cur.time >= prev.time) {
+        prev.duration = cur.time - prev.time
+        if (prev.element) prev.element.style.setProperty('--duration', prev.duration + 'ms')
+    }
 }
 function nextWord() {
     const NextWordButton = document.getElementById('nextword-button')
@@ -754,6 +777,7 @@ function nextWord() {
             }
         }
         currentWordIndex++
+        _scheduleSessionSave()
         return
     }
     const { lineIdx, syllabusIdx } = entry
@@ -800,6 +824,7 @@ function nextWord() {
     }
     lastWordIndex = currentWordIndex
     currentWordIndex++
+    _scheduleSessionSave()
 }
 function openWord(wordIndex) {
     if (wordIndex < 0 || wordIndex >= allSyllables.length) return
@@ -841,9 +866,12 @@ function openWord(wordIndex) {
 function unselect() {
     selectedWordIndex = -1
     document.querySelectorAll('.opened-word').forEach(el => el.classList.remove('opened-word'))
-    document.getElementById('properties-word').innerText = ''
-    document.getElementById('properties-start').value = 0
-    document.getElementById('properties-length').value = 0
+    const wordEl = document.getElementById('properties-word')
+    if (wordEl) wordEl.innerText = ''
+    const startEl = document.getElementById('properties-start')
+    if (startEl) startEl.value = 0
+    const lenEl = document.getElementById('properties-length')
+    if (lenEl) lenEl.value = 0
     updateTimeDisplays()
     const empty = document.getElementById('props-empty')
     const filled = document.getElementById('props-filled')
@@ -1292,6 +1320,7 @@ elem_musicInput.addEventListener('change', function () {
             } else {
                 metadata.songWriters = []
             }
+            _scheduleSessionSave()
         },
         onError: function (error) {
             console.error('Media tags error:', error)
@@ -1301,6 +1330,7 @@ elem_musicInput.addEventListener('change', function () {
         currentLyrics = []
         currentWordIndex = 0
     }
+    _scheduleSessionSave()
 })
 player.on('play', function () {
     goBackIndex = 0
@@ -1344,6 +1374,14 @@ document.addEventListener('keydown', function (event) {
         redoAction()
     }
 })
+// Alt+↑ / Alt+↓ — move the selected word's line up/down, keeping all timing
+document.addEventListener('keydown', function (event) {
+    const tag = (document.activeElement?.tagName || '').toUpperCase()
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
+    if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+    if (event.key === 'ArrowUp') { event.preventDefault(); moveSelectedLine(-1) }
+    else if (event.key === 'ArrowDown') { event.preventDefault(); moveSelectedLine(1) }
+})
 document.addEventListener('click', function (event) {
     if (event.target.classList.contains('lyrics-word')) {
         const el = event.target
@@ -1361,20 +1399,27 @@ document.getElementById('properties-start')?.addEventListener('input', function 
     _commitTypedEdit()
     if (selectedWordIndex === -1 || selectedWordIndex >= allSyllables.length) return
     const { lineIdx, syllabusIdx } = allSyllables[selectedWordIndex]
-    const syl = tempLyrics[lineIdx]?.syllabus[syllabusIdx]
+    const line = tempLyrics[lineIdx]
+    const syl = line?.syllabus[syllabusIdx]
     if (!syl) return
     syl.time = Math.max(0, parseInt(event.target.value) || 0)
+    _syncPrevDuration(lineIdx, syllabusIdx)
+    _recalcLineTime(line)
     updateTimeDisplays()
+    _scheduleSessionSave()
 })
 document.getElementById('properties-length')?.addEventListener('input', function (event) {
     _commitTypedEdit()
     if (selectedWordIndex === -1 || selectedWordIndex >= allSyllables.length) return
     const { lineIdx, syllabusIdx } = allSyllables[selectedWordIndex]
-    const syl = tempLyrics[lineIdx]?.syllabus[syllabusIdx]
+    const line = tempLyrics[lineIdx]
+    const syl = line?.syllabus[syllabusIdx]
     if (!syl) return
     syl.duration = Math.max(0, parseInt(event.target.value) || 0)
     if (syl.element) syl.element.style.setProperty('--duration', syl.duration + 'ms')
+    _recalcLineTime(line)
     updateTimeDisplays()
+    _scheduleSessionSave()
 })
 document.getElementById('properties-preview')?.addEventListener('click', function (event) {
     if (selectedWordIndex === -1 || selectedWordIndex >= allSyllables.length) return
@@ -1385,10 +1430,19 @@ document.getElementById('properties-preview')?.addEventListener('click', functio
     player.play()
     setTimeout(() => { player.pause() }, (syl.duration || 1000) + 300)
 })
-window.addEventListener('load', function () {
+// App "load" handling — hides the spinner and offers session restore
+let _loadHandled = false
+function _onAppLoad() {
+    if (_loadHandled) return
+    _loadHandled = true
     const loadingElement = document.getElementById('loading')
     if (loadingElement) loadingElement.style.display = 'none'
-})
+    _checkSessionRestore()
+}
+window.addEventListener('load', _onAppLoad)
+if (document.readyState === 'complete') _onAppLoad()
+// Flush any pending autosave when the tab closes
+window.addEventListener('beforeunload', _saveSessionNow)
 if (typeof tippy !== 'undefined') {
     const menuOptions = {
         allowHTML: true,
@@ -1412,7 +1466,7 @@ if (typeof tippy !== 'undefined') {
         ...menuHooks('menu-file'),
         content: `
 <div class="dropdown-content">
-    <button onclick="reset()">
+    <button onclick="safeReset()">
         <i data-lucide="file-plus" class="menu-icon"></i> New
     </button>
     <button onclick="importKMAKE()">
@@ -1464,7 +1518,7 @@ if (typeof tippy !== 'undefined') {
         <i data-lucide="youtube" class="menu-icon"></i> Load from YouTube…
     </button>
     <div class="dropdown-separator"></div>
-    <button onclick="reset()">
+    <button onclick="safeReset()">
         <i data-lucide="rotate-ccw" class="menu-icon"></i> Reset All
     </button>
 </div>`,
@@ -1539,7 +1593,8 @@ function updateTimeDisplays() {
 function nudgeProperty(field, delta) {
     if (selectedWordIndex === -1 || selectedWordIndex >= allSyllables.length) return
     const { lineIdx, syllabusIdx } = allSyllables[selectedWordIndex]
-    const syl = tempLyrics[lineIdx]?.syllabus[syllabusIdx]
+    const line = tempLyrics[lineIdx]
+    const syl = line?.syllabus[syllabusIdx]
     if (!syl) return
     const inputId = field === 'start' ? 'properties-start' : 'properties-length'
     const input = document.getElementById(inputId)
@@ -1550,16 +1605,20 @@ function nudgeProperty(field, delta) {
     input.value = newVal
     if (field === 'start') {
         syl.time = newVal
+        _syncPrevDuration(lineIdx, syllabusIdx)
     } else {
         syl.duration = newVal
         if (syl.element) syl.element.style.setProperty('--duration', newVal + 'ms')
     }
+    _recalcLineTime(line)
     updateTimeDisplays()
+    _scheduleSessionSave()
 }
 function syncWordToCursor(field) {
     if (selectedWordIndex === -1 || selectedWordIndex >= allSyllables.length) return
     const { lineIdx, syllabusIdx } = allSyllables[selectedWordIndex]
-    const syl = tempLyrics[lineIdx]?.syllabus[syllabusIdx]
+    const line = tempLyrics[lineIdx]
+    const syl = line?.syllabus[syllabusIdx]
     if (!syl) return
     pushUndo()
     const timeMs = Math.round(player.currentTime * 1000)
@@ -1568,7 +1627,10 @@ function syncWordToCursor(field) {
     syl.time = timeMs
     syl.isDone = true
     if (syl.element) syl.element.classList.add('done-word')
+    _syncPrevDuration(lineIdx, syllabusIdx)
+    _recalcLineTime(line)
     updateTimeDisplays()
+    _scheduleSessionSave()
     showToast(`Synced to ${msToDisplayTime(timeMs)}`)
 }
 function changeSelectedLineAgent(newAlias) {
@@ -1597,7 +1659,103 @@ function changeSelectedLineAgent(newAlias) {
         lineCounter++
     }
     elem_lyricsInput.value = textLines.join('\n')
+    _scheduleSessionSave()
     showToast(`Line reassigned to ${newAlias}`)
+}
+// ============================================================
+// UNSTAMP WORD
+// ============================================================
+function unstampWord() {
+    if (selectedWordIndex === -1 || selectedWordIndex >= allSyllables.length) return
+    const entry = allSyllables[selectedWordIndex]
+    if (entry.isEndOfLine) return
+    const line = tempLyrics[entry.lineIdx]
+    const syl = line?.syllabus[entry.syllabusIdx]
+    if (!syl) return
+    if (!syl.isDone && !(syl.time > 0)) {
+        showToast('This word has no timing to clear', 2500, 'error')
+        return
+    }
+    pushUndo()
+    syl.time = 0
+    syl.duration = 0
+    syl.isDone = false
+    if (syl.element) {
+        syl.element.classList.remove('done-word', 'current-word')
+        syl.element.style.setProperty('--duration', '0ms')
+    }
+    _recalcLineTime(line)
+    // Move the sync cursor back so Enter immediately re-stamps this word
+    currentWordIndex = Math.min(currentWordIndex, selectedWordIndex)
+    document.getElementById('properties-start').value = 0
+    document.getElementById('properties-length').value = 0
+    updateTimeDisplays()
+    _scheduleSessionSave()
+    showToast('Timing cleared — press Enter to re-stamp')
+}
+// Inject the Unstamp button into the Properties panel button bar (index.html untouched)
+;(function injectUnstampButton() {
+    const anchor = document.getElementById('properties-preview')
+    if (!anchor || document.getElementById('unstamp-btn')) return
+    const btn = document.createElement('button')
+    btn.id = 'unstamp-btn'
+    btn.title = 'Clear timing for the selected word'
+    btn.textContent = '⌫ Unstamp'
+    btn.addEventListener('click', unstampWord)
+    anchor.after(btn)
+})()
+// ============================================================
+// MOVE LINE (Alt+↑ / Alt+↓) — timing travels with the line
+// because parseLyrics() re-matches words via LCS after the swap
+// ============================================================
+function moveSelectedLine(direction) {
+    // Anchor = the line of the selected word, else the line of the sync cursor
+    let anchorTextIdx = -1
+    let selEntry = null
+    if (selectedWordIndex >= 0 && selectedWordIndex < allSyllables.length && !allSyllables[selectedWordIndex].isEndOfLine) {
+        selEntry = allSyllables[selectedWordIndex]
+        anchorTextIdx = tempLyrics[selEntry.lineIdx]?.lineIndex ?? -1
+    } else if (currentWordIndex > 0) {
+        const prev = allSyllables[Math.min(currentWordIndex, allSyllables.length) - 1]
+        if (prev && !prev.isEndOfLine) anchorTextIdx = tempLyrics[prev.lineIdx]?.lineIndex ?? -1
+    }
+    if (anchorTextIdx === -1) {
+        showToast('Select a word in the line you want to move', 3000, 'error')
+        return
+    }
+    const lines = elem_lyricsInput.value.split('\n')
+    const targetIdx = anchorTextIdx + direction
+    if (anchorTextIdx >= lines.length || targetIdx < 0 || targetIdx >= lines.length) {
+        showToast(direction < 0 ? 'Already at the top' : 'Already at the bottom', 2000, 'error')
+        return
+    }
+    const selSylText = selEntry
+        ? tempLyrics[selEntry.lineIdx]?.syllabus[selEntry.syllabusIdx]?.text
+        : null
+    pushUndo()
+    const tmp = lines[anchorTextIdx]
+    lines[anchorTextIdx] = lines[targetIdx]
+    lines[targetIdx] = tmp
+    elem_lyricsInput.value = lines.join('\n')
+    parseLyrics()   // LCS matching carries every word's timing into the new order
+    // Re-select the moved word so you can keep nudging / moving it
+    if (selSylText != null) {
+        const newLineIdx = tempLyrics.findIndex(l => !l.isTaggedLine && l.lineIndex === targetIdx)
+        if (newLineIdx !== -1) {
+            const si = (tempLyrics[newLineIdx].syllabus || []).findIndex(s => s.text === selSylText)
+            if (si !== -1) {
+                const idx = allSyllables.findIndex(a => a.lineIdx === newLineIdx && a.syllabusIdx === si)
+                if (idx !== -1) {
+                    selectedWordIndex = idx
+                    document.querySelectorAll('.opened-word').forEach(el => el.classList.remove('opened-word'))
+                    tempLyrics[newLineIdx].syllabus[si].element?.classList.add('opened-word')
+                    _refreshSelectionPanel()
+                }
+            }
+        }
+    }
+    _scheduleSessionSave()
+    showToast(direction < 0 ? 'Line moved up — timing kept' : 'Line moved down — timing kept')
 }
 // ============================================================
 // UNDO / REDO
@@ -1636,14 +1794,17 @@ function redoAction() {
     showToast('Redo')
 }
 function _applySnapshot(snap) {
-    const realCount = allSyllables.filter(e => !e.isEndOfLine).length
     const snapCount = snap.syls.filter(Boolean).length
-    if (realCount !== snapCount) {
-        // Lyrics structure changed since the snapshot — restore the text and
-        // re-parse; parseLyrics()' LCS matching remaps whatever timing still fits
+    const textChanged = elem_lyricsInput.value !== snap.text
+    if (textChanged) {
+        // Text-level change (line moves, singer edits, manual text undo) —
+        // rebuild from the snapshot text first so syllable order matches
         elem_lyricsInput.value = snap.text
         parseLyrics()
-    } else {
+    }
+    const realCount = allSyllables.filter(e => !e.isEndOfLine).length
+    if (realCount === snapCount) {
+        // Exact restore of every syllable's timing
         let si = 0
         for (const e of allSyllables) {
             if (e.isEndOfLine) continue
@@ -1662,18 +1823,10 @@ function _applySnapshot(snap) {
         tempLyrics.forEach((line, li) => {
             if (line.isTaggedLine || !line.syllabus) return
             if (snap.singers[li] != null && line.element) line.element.singer = snap.singers[li]
-            const doneSyls = line.syllabus.filter(s => s.isDone && s.time > 0)
-            if (doneSyls.length) {
-                line.time = Math.min(...doneSyls.map(s => s.time))
-                const lastSyl = [...line.syllabus].reverse().find(s => s.isDone)
-                line.duration = lastSyl ? (lastSyl.time + lastSyl.duration - line.time) : 0
-            } else {
-                line.time = 0
-                line.duration = 0
-            }
+            _recalcLineTime(line)
         })
-        elem_lyricsInput.value = snap.text
     }
+    // else: structure really changed — parseLyrics()' LCS already salvaged what it could
     currentWordIndex = Math.min(snap.wordIndex, allSyllables.length)
     // Restore the "current word" marker on the last stamped syllable
     document.querySelectorAll('.current-word').forEach(el => el.classList.remove('current-word'))
@@ -1685,6 +1838,7 @@ function _applySnapshot(snap) {
         }
     }
     _refreshSelectionPanel()
+    _scheduleSessionSave()
 }
 function _refreshSelectionPanel() {
     if (selectedWordIndex < 0 || selectedWordIndex >= allSyllables.length) return
@@ -1715,6 +1869,219 @@ function _commitTypedEdit() {
     el.addEventListener('focus', () => { _pendingFieldSnapshot = _captureState() })
     el.addEventListener('blur', () => { _pendingFieldSnapshot = null })
 })
+// ============================================================
+// AUTO-SAVE & SESSION RESTORE
+// ============================================================
+const SESSION_KEY = 'kmake-autosave-v1'
+let _sessionSaveTimer = null
+function _scheduleSessionSave() {
+    if (_sessionSaveTimer) clearTimeout(_sessionSaveTimer)
+    _sessionSaveTimer = setTimeout(_saveSessionNow, 800)
+}
+function _serializeLyrics() {
+    return tempLyrics.map(line => ({
+        time: line.time || 0,
+        duration: line.duration || 0,
+        text: line.text || '',
+        lineIndex: line.lineIndex ?? 0,
+        isTaggedLine: !!line.isTaggedLine,
+        tag: line.tag || null,
+        element: line.element
+            ? { key: line.element.key, singer: line.element.singer, songPartIndex: line.element.songPartIndex }
+            : null,
+        syllabus: (line.syllabus || []).map(s => ({
+            time: s.time || 0,
+            duration: s.duration || 0,
+            text: s.text || '',
+            isDone: !!s.isDone
+        }))
+    }))
+}
+function _saveSessionNow() {
+    if (_sessionSaveTimer) { clearTimeout(_sessionSaveTimer); _sessionSaveTimer = null }
+    try {
+        const hasContent = (elem_lyricsInput.value || '').trim() !== '' || tempLyrics.length > 0
+        if (!hasContent) {
+            localStorage.removeItem(SESSION_KEY)
+            return
+        }
+        const payload = {
+            version: 1,
+            savedAt: Date.now(),
+            filename: filename,
+            currentWordIndex: currentWordIndex,
+            metadataEverOpened: metadataEverOpened,
+            lyricsText: elem_lyricsInput.value,
+            metadata: { ...metadata },
+            tempLyrics: _serializeLyrics()
+        }
+        localStorage.setItem(SESSION_KEY, JSON.stringify(payload))
+    } catch (e) {
+        console.warn('Autosave failed:', e)
+    }
+}
+function _timeAgo(ts) {
+    const s = Math.floor((Date.now() - ts) / 1000)
+    if (s < 60) return 'just now'
+    const m = Math.floor(s / 60)
+    if (m < 60) return m + ' min ago'
+    const h = Math.floor(m / 60)
+    if (h < 24) return h + 'h ' + (m % 60) + 'm ago'
+    const d = Math.floor(h / 24)
+    return d + ' day' + (d > 1 ? 's' : '') + ' ago'
+}
+function _checkSessionRestore() {
+    let data = null
+    try { data = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null') } catch { return }
+    if (!data || !(data.tempLyrics || []).length) return
+    if (!(data.lyricsText || '').trim() && !(data.tempLyrics || []).length) return
+    const lyricLines = (data.tempLyrics || []).filter(l => !l.isTaggedLine)
+    const allSyls = lyricLines.flatMap(l => l.syllabus || [])
+    const doneSyls = allSyls.filter(s => s.isDone)
+    const when = _timeAgo(data.savedAt || Date.now())
+    const existing = document.getElementById('restore-modal')
+    if (existing) existing.remove()
+    const modal = document.createElement('div')
+    modal.id = 'restore-modal'
+    modal.className = 'kmake-modal'
+    modal.innerHTML = `
+<div class="kmake-modal-backdrop" onclick="closeRestoreModal()"></div>
+<div class="kmake-modal-content" style="max-width:430px">
+    <div class="kmake-modal-header">
+        <i data-lucide="history" class="modal-header-icon"></i>
+        <h2>Restore previous session?</h2>
+        <button onclick="closeRestoreModal()" class="modal-close-btn"><i data-lucide="x"></i></button>
+    </div>
+    <div class="kmake-modal-body">
+        <div style="display:flex;flex-direction:column;gap:12px">
+            <p style="font-size:0.85rem;color:var(--md-sys-color-on-surface-variant);line-height:1.55">
+                Found an autosaved session from <b style="color:var(--md-sys-color-on-surface)">${when}</b>${data.filename ? ' for <b style="color:var(--md-sys-color-on-surface)">' + escapeHtmlAttr(data.filename) + '</b>' : ''}.
+            </p>
+            <div style="display:flex;gap:8px">
+                <div style="flex:1;background:var(--md-sys-color-surface-container);border:1px solid var(--md-sys-color-outline-variant);border-radius:10px;padding:10px 12px;text-align:center">
+                    <div style="font-size:1.2rem;font-weight:700;color:var(--md-sys-color-primary)">${lyricLines.length}</div>
+                    <div style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--md-sys-color-on-surface-variant)">Lines</div>
+                </div>
+                <div style="flex:1;background:var(--md-sys-color-surface-container);border:1px solid var(--md-sys-color-outline-variant);border-radius:10px;padding:10px 12px;text-align:center">
+                    <div style="font-size:1.2rem;font-weight:700;color:var(--md-sys-color-primary)">${doneSyls.length}<span style="font-size:0.8rem;opacity:0.55">/${allSyls.length}</span></div>
+                    <div style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--md-sys-color-on-surface-variant)">Words timed</div>
+                </div>
+            </div>
+            <p style="font-size:0.74rem;color:var(--md-sys-color-on-surface-variant);opacity:0.8;line-height:1.5">
+                ⓘ Audio files can't be stored in the browser — after restoring, reload the song via <b>Song → Load Audio File</b> to continue syncing.
+            </p>
+        </div>
+    </div>
+    <div class="kmake-modal-footer">
+        <button onclick="discardSession()" class="btn-secondary">Discard</button>
+        <button onclick="restoreSession()" class="btn-primary">Restore session</button>
+    </div>
+</div>`
+    document.body.appendChild(modal)
+    window._pendingSessionData = data
+    requestAnimationFrame(() => { modal.classList.add('visible'); if (typeof lucide !== 'undefined') lucide.createIcons() })
+}
+function closeRestoreModal() {
+    const m = document.getElementById('restore-modal')
+    if (m) { m.classList.remove('visible'); setTimeout(() => m.remove(), 200) }
+}
+function discardSession() {
+    localStorage.removeItem(SESSION_KEY)
+    window._pendingSessionData = null
+    closeRestoreModal()
+    showToast('Session discarded')
+}
+function restoreSession() {
+    const data = window._pendingSessionData
+    window._pendingSessionData = null
+    if (!data) { closeRestoreModal(); return }
+    try {
+        metadata = { ...metadata, ...(data.metadata || {}) }
+        filename = data.filename || ''
+        metadataEverOpened = !!data.metadataEverOpened
+        tempLyrics = (data.tempLyrics || []).map(line => ({
+            time: line.time || 0,
+            duration: line.duration || 0,
+            text: line.text || '',
+            lineIndex: line.lineIndex ?? 0,
+            isTaggedLine: !!line.isTaggedLine,
+            tag: line.tag || null,
+            element: line.element || (line.isTaggedLine ? null : { key: '', singer: 'v1', songPartIndex: -1 }),
+            lineElement: null,
+            syllabus: (line.syllabus || []).map(s => ({
+                time: s.time || 0,
+                duration: s.duration || 0,
+                text: s.text || '',
+                isDone: !!s.isDone,
+                element: null
+            }))
+        }))
+        elem_lyricsInput.value = data.lyricsText || ''
+        rebuildLyricsDOM()
+        buildAllSyllables()
+        currentWordIndex = Math.min(data.currentWordIndex || 0, allSyllables.length)
+        document.querySelectorAll('.current-word').forEach(el => el.classList.remove('current-word'))
+        if (currentWordIndex > 0) {
+            const prev = allSyllables[currentWordIndex - 1]
+            if (!prev.isEndOfLine) {
+                const s = tempLyrics[prev.lineIdx]?.syllabus[prev.syllabusIdx]
+                if (s?.element && s.isDone) s.element.classList.add('current-word')
+            }
+        }
+        closeRestoreModal()
+        showToast(`Session restored${filename ? ' — now reload "' + filename + '"' : ' — reload your audio to continue'}`, 5000)
+    } catch (e) {
+        console.error('Session restore failed:', e)
+        showToast('Restore failed', 3000, 'error')
+    }
+}
+// ============================================================
+// SAFE RESET (destructive-action guard)
+// ============================================================
+function safeReset() {
+    const hasWork = (elem_lyricsInput.value || '').trim() !== '' || tempLyrics.length > 0 || music_file
+    if (!hasWork) { reset(); return }
+    openResetConfirm()
+}
+function openResetConfirm() {
+    const existing = document.getElementById('reset-confirm-modal')
+    if (existing) existing.remove()
+    const modal = document.createElement('div')
+    modal.id = 'reset-confirm-modal'
+    modal.className = 'kmake-modal'
+    modal.innerHTML = `
+<div class="kmake-modal-backdrop" onclick="closeResetConfirm()"></div>
+<div class="kmake-modal-content" style="max-width:390px">
+    <div class="kmake-modal-header">
+        <i data-lucide="alert-triangle" class="modal-header-icon" style="color:var(--md-sys-color-error)"></i>
+        <h2>Reset everything?</h2>
+        <button onclick="closeResetConfirm()" class="modal-close-btn"><i data-lucide="x"></i></button>
+    </div>
+    <div class="kmake-modal-body">
+        <p style="font-size:0.85rem;color:var(--md-sys-color-on-surface-variant);line-height:1.6">
+            This clears the lyrics, all timing, agents and metadata${localStorage.getItem(SESSION_KEY) ? ', and deletes the autosaved session' : ''}.
+            This can't be undone.
+        </p>
+    </div>
+    <div class="kmake-modal-footer">
+        <button onclick="closeResetConfirm()" class="btn-secondary">Cancel</button>
+        <button onclick="executeReset()" class="btn-primary" style="background:var(--md-sys-color-error-container);color:var(--md-sys-color-on-error-container)">Reset</button>
+    </div>
+</div>`
+    document.body.appendChild(modal)
+    requestAnimationFrame(() => { modal.classList.add('visible'); if (typeof lucide !== 'undefined') lucide.createIcons() })
+}
+function closeResetConfirm() {
+    const m = document.getElementById('reset-confirm-modal')
+    if (m) { m.classList.remove('visible'); setTimeout(() => m.remove(), 200) }
+}
+function executeReset() {
+    closeResetConfirm()
+    reset()
+    showToast('Project reset')
+}
+// Upgrade the plain reset() button(s) defined in index.html to the guarded version
+document.querySelectorAll('button[onclick="reset()"]').forEach(btn => btn.setAttribute('onclick', 'safeReset()'))
 // ============================================================
 // AGENT MANAGER
 // ============================================================
@@ -2018,6 +2385,7 @@ function saveMetadata() {
     const cb = _pendingExportFn
     _pendingExportFn = null
     closeMetadataEditor()
+    _scheduleSessionSave()
     if (cb) { cb() } else { showToast('Metadata saved') }
 }
 function closeMetadataEditor() {
@@ -2156,12 +2524,16 @@ v2:Be]neath the stars</div>
                     <div class="shortcut-row"><kbd>Ctrl+Z</kbd><span>Undo (stamps, timing, singer changes)</span></div>
                     <div class="shortcut-row"><kbd>Ctrl+Shift+Z</kbd><span>Redo</span></div>
                     <div class="shortcut-row"><kbd>Ctrl+Y</kbd><span>Redo (alternate)</span></div>
+                    <div class="shortcut-row"><kbd>Alt+↑ / ↓</kbd><span>Move selected line up / down (timing kept)</span></div>
                 </div>
             </div>
             <div class="shortcut-group">
                 <h3>Tips</h3>
                 <ul class="tip-list">
                     <li>Click any word in the Sync panel to <b>select</b> it and edit its timing in the Properties panel.</li>
+                    <li><b>⌫ Unstamp</b> in the Properties panel clears a word's timing so you can re-stamp it with Enter.</li>
+                    <li>To reorder lines (e.g. swap two sung phrases), select a word and press <b>Alt+↑/↓</b> — every word keeps its timing.</li>
+                    <li>Your work <b>autosaves</b> to the browser — if you close the tab, you'll be offered a restore next time.</li>
                     <li>Enable <b>Preview Mode</b> to see a karaoke-style view with themes.</li>
                     <li>Use <b>File → Save as</b> to save a <code>.kmake</code> file (audio + lyrics bundled).</li>
                     <li>Drag panel titles to rearrange the layout.</li>
