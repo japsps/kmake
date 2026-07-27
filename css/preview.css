@@ -41,21 +41,20 @@
 
 #lyrics-content.preview[data-theme="jd2014"] .lyrics-line {
     display: none;
-
     width: calc(100% - 10px);
     overflow: visible;
     white-space: nowrap;
+    flex-wrap: nowrap;              /* ← add: one row, like real JD */
 }
 
-#lyrics-content.preview[data-theme="jd2014"] .playing-line {
-    z-index: 999;
+#lyrics-content.preview[data-theme="jd2014"] .next-playing-line {
+    z-index: 0;
     display: flex;
-
     position: absolute;
-    top: calc(0px + var(--offset-y));
+    top: calc(40px + var(--offset-y));   /* was 30px */
     left: calc(0px + var(--offset-x));
-
-    animation: playing-line 300ms ease-out;
+    opacity: 0;
+    animation: next-line 200ms 100ms linear forwards;
 }
 
 @keyframes playing-line {
