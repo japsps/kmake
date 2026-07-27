@@ -48,7 +48,7 @@
 }
 
 #lyrics-content.preview[data-theme="jd2014"] .next-playing-line {
-    z-index: 0;
+    z-index: 999;
     display: flex;
     position: absolute;
     top: calc(40px + var(--offset-y));   /* was 30px */
@@ -73,7 +73,7 @@
 }
 
 #lyrics-content.preview[data-theme="jd2014"] .next-playing-line {
-    z-index: 0;
+    z-index: 999;
     display: flex;
 
     position: absolute;
