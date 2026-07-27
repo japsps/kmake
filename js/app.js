@@ -656,6 +656,9 @@ function _restoreTimingViaLCS(syllabus, oldSyls, dryRun = false) {
 function parseLyrics() {
     if (elem_lyricsInput.value.trim() === '') return
     elem_lyricsContent.innerHTML = ''
+    // Force the highlight interval to re-evaluate against the fresh DOM
+    _lastSylRef = null;
+    _lastLineEl = null;
     // Per-key array so duplicate lines each restore their own timing in order
     const oldLineMap = new Map()
     tempLyrics.forEach(oldLine => {
@@ -1465,18 +1468,13 @@ setInterval(() => {
         // Update line classes only when line changes
         const newLineEl = currentSyl?.element?.closest('.lyrics-line');
         if (newLineEl !== _lastLineEl) {
-            // Remove classes from old line(s)
-            if (_lastLineEl) {
-                _lastLineEl.classList.remove('playing-line', 'next-playing-line', 'previous-playing-line', 'next-next-playing-line');
-                const oldNext = _lastLineEl.nextElementSibling;
-                if (oldNext && !oldNext.classList.contains('tagged-line')) {
-                    oldNext.classList.remove('next-playing-line', 'next-next-playing-line');
-                }
-                const oldPrev = _lastLineEl.previousElementSibling;
-                if (oldPrev && !oldPrev.classList.contains('tagged-line')) {
-                    oldPrev.classList.remove('previous-playing-line');
-                }
-            }
+            // Sweep every line-state class before re-assigning. The old
+            // neighbor-based cleanup only looked at immediate siblings, so a
+            // #section tag or agent line between two lyric lines left stale
+            // next/previous classes behind — which is what rendered two lines
+            // on top of each other in the jd2014/karafun previews.
+            elem_lyricsContent.querySelectorAll('.playing-line, .next-playing-line, .next-next-playing-line, .previous-playing-line')
+                .forEach(el => el.classList.remove('playing-line', 'next-playing-line', 'next-next-playing-line', 'previous-playing-line'));
             if (newLineEl && !newLineEl.classList.contains('tagged-line')) {
                 newLineEl.classList.add('playing-line');
 
