@@ -1502,7 +1502,6 @@ setInterval(() => {
         }
         _lastLineEl = newLineEl;
     }
-        }
         _lastSylRef = currentSylRef;
     }
     // Update played_word for any other logic
