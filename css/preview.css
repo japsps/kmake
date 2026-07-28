@@ -52,19 +52,19 @@
     display: flex;
 
     position: absolute;
-    top: calc(0px + var(--offset-y));
+    top: calc(30px + var(--offset-y));   /* ← match the FROM keyframe, not 0 */
     left: calc(0px + var(--offset-x));
 
-    animation: playing-line 300ms ease-out both;  /* ← added "both" */
+    animation: playing-line 300ms ease-out forwards;  /* ← add forwards */
 }
 
 
 #lyrics-content.preview[data-theme="jd2014"] .next-playing-line {
-    z-index: 0;                          /* was changed to 999 — must stay 0 so it renders BEHIND the playing line */
+    z-index: 0;                              /* ← was 999, must be behind playing line */
     display: flex;
 
     position: absolute;
-    top: calc(30px + var(--offset-y));   /* was changed to 40px — original is 30px */
+    top: calc(30px + var(--offset-y));       /* ← was 40px, must match playing-line FROM */
     left: calc(0px + var(--offset-x));
 
     opacity: 0;
