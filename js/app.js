@@ -1465,19 +1465,22 @@ setInterval(() => {
         allSylElems.forEach((el, idx) => {
             el.classList.toggle('past-word', idx < currentElemIdx);
         });
-        // Update line classes only when line changes
+// Inside the interval, where you assign classes
         const newLineEl = currentSyl?.element?.closest('.lyrics-line');
         if (newLineEl !== _lastLineEl) {
-            // STEP 1 — sweep every stale line-state class. This MUST run before
-            // the re-assignment below. (If it runs after, it wipes playing-line
-            // off the current line and only the next line survives — the
-            // "only the line below is visible" symptom.)
+            // Sweep stale classes
             elem_lyricsContent.querySelectorAll('.playing-line, .next-playing-line, .next-next-playing-line, .previous-playing-line')
                 .forEach(el => el.classList.remove('playing-line', 'next-playing-line', 'next-next-playing-line', 'previous-playing-line'));
 
-            // STEP 2 — assign fresh classes
             if (newLineEl && !newLineEl.classList.contains('tagged-line')) {
+                // Add classes
                 newLineEl.classList.add('playing-line');
+                // Force override CSS display and position (if needed)
+                newLineEl.style.display = 'flex';
+                newLineEl.style.position = 'absolute';
+                newLineEl.style.top = 'calc(0px + var(--offset-y))';
+                newLineEl.style.left = 'calc(0px + var(--offset-x))';
+                newLineEl.style.opacity = '1';
 
                 function getValidLine(element, direction) {
                     let cur = element;
