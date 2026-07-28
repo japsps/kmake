@@ -1422,17 +1422,19 @@ document.addEventListener('keydown', function(event) {
 // ======= UPDATED INTERVAL WITH FLICKER FIX =======
 let _lastSylRef = null;
 let _lastLineEl = null;
+
 setInterval(() => {
     if (!tempLyrics || tempLyrics.length === 0) return;
+
     if (player.paused) {
         document.getElementById('lyrics-content').classList.add('paused');
     } else {
         document.getElementById('lyrics-content').classList.remove('paused');
     }
+
     const time = player.currentTime * 1000;
     const EPS = 1;
 
-    // Find the current syllable
     let currentSylRef = null;
     for (let i = 0; i < allSyllables.length; i++) {
         const { lineIdx, syllabusIdx } = allSyllables[i];
@@ -1445,9 +1447,9 @@ setInterval(() => {
         currentSylRef = allSyllables[i];
     }
 
-    // Update playing-word class
     const playingEl = document.querySelector('.playing-word');
     if (playingEl) playingEl.classList.remove('playing-word');
+
     let currentSyl = null;
     if (currentSylRef) {
         currentSyl = tempLyrics[currentSylRef.lineIdx]?.syllabus[currentSylRef.syllabusIdx];
@@ -1456,7 +1458,6 @@ setInterval(() => {
         }
     }
 
-    // Update past-word classes
     const allSylElems = Array.from(document.querySelectorAll('.lyrics-word'))
         .filter(el => el.id.startsWith('syl-'));
     const currentElem = currentSyl?.element;
@@ -1465,17 +1466,17 @@ setInterval(() => {
         el.classList.toggle('past-word', idx < currentElemIdx);
     });
 
-    // Find the current line element
     const newLineEl = currentSyl?.element?.closest('.lyrics-line');
     if (newLineEl !== _lastLineEl) {
-        // Remove all line‑state classes
-        elem_lyricsContent.querySelectorAll('.playing-line, .next-playing-line, .next-next-playing-line, .previous-playing-line')
-            .forEach(el => el.classList.remove('playing-line', 'next-playing-line', 'next-next-playing-line', 'previous-playing-line'));
+        elem_lyricsContent.querySelectorAll(
+            '.playing-line, .next-playing-line, .next-next-playing-line, .previous-playing-line'
+        ).forEach(el => el.classList.remove(
+            'playing-line', 'next-playing-line', 'next-next-playing-line', 'previous-playing-line'
+        ));
 
         if (newLineEl && !newLineEl.classList.contains('tagged-line')) {
             newLineEl.classList.add('playing-line');
 
-            // Find valid (non‑tagged) next/prev lines
             const getValidLine = (el, dir) => {
                 let cur = el;
                 while (cur) {
@@ -1494,7 +1495,6 @@ setInterval(() => {
             const prevLine = getValidLine(newLineEl, 'previous');
             if (prevLine) prevLine.classList.add('previous-playing-line');
 
-            // Auto‑scroll in preview mode
             if (document.getElementById('lyrics-content').classList.contains('preview')) {
                 const lyricsContent = document.getElementById('lyrics-content');
                 lyricsContent.scrollTop = newLineEl.offsetTop - lyricsContent.clientHeight / 2 + 120;
@@ -1502,10 +1502,7 @@ setInterval(() => {
         }
         _lastLineEl = newLineEl;
     }
-        _lastSylRef = currentSylRef;
-    }
-    // Update played_word for any other logic
-    const currentSyl = currentSylRef ? tempLyrics[currentSylRef.lineIdx]?.syllabus[currentSylRef.syllabusIdx] : null;
+
     const currentText = currentSyl?.text || '';
     if (currentText !== played_word) {
         played_word = currentText;
