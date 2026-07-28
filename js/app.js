@@ -3287,46 +3287,157 @@ function closeFindReplace() {
 }
 
 // ============================================================
-// SYNC SIMILAR LINES TIMING
+// SYNC SIMILAR LINES — interactive group picker
 // ============================================================
 function syncSimilarLinesTiming() {
-    pushUndo();
-    const timedLines = tempLyrics.filter(l => !l.isTaggedLine && l.syllabus.some(s => s.isDone));
-    const untimedLines = tempLyrics.filter(l => !l.isTaggedLine && !l.syllabus.some(s => s.isDone));
+    // 1. Build groups of similar lines (≥50% word overlap via LCS dry-run)
+    const lyricLines = tempLyrics
+        .map((l, i) => ({ line: l, idx: i }))
+        .filter(e => !e.line.isTaggedLine && (e.line.syllabus || []).length > 0);
 
-    if (untimedLines.length === 0) {
-        showToast('All lines already have timing');
-        return;
-    }
-    if (timedLines.length === 0) {
-        showToast('No timed lines to sync from', 2500, 'error');
-        return;
-    }
+    const used = new Set();
+    const groups = [];
 
-    let syncedCount = 0;
-    untimedLines.forEach(untimedLine => {
-        let bestMatch = null;
-        let bestScore = 0;
-        
-        // Find the best matching timed line using LCS dryRun
-        timedLines.forEach(timedLine => {
-            const score = _restoreTimingViaLCS(untimedLine.syllabus, timedLine.syllabus, true);
-            if (score > bestScore) {
-                bestScore = score;
-                bestMatch = timedLine;
+    for (let i = 0; i < lyricLines.length; i++) {
+        if (used.has(i)) continue;
+        const group = [i];
+        used.add(i);
+
+        for (let j = i + 1; j < lyricLines.length; j++) {
+            if (used.has(j)) continue;
+            const score = _restoreTimingViaLCS(
+                lyricLines[i].line.syllabus,
+                lyricLines[j].line.syllabus,
+                true
+            );
+            const minLen = Math.min(
+                lyricLines[i].line.syllabus.length,
+                lyricLines[j].line.syllabus.length
+            );
+            // ≥50% of the shorter line's words must match
+            if (score >= Math.max(1, Math.ceil(minLen / 2))) {
+                group.push(j);
+                used.add(j);
             }
+        }
+
+        if (group.length > 1) groups.push(group);
+    }
+
+    if (groups.length === 0) {
+        showToast('No similar lines found');
+        return;
+    }
+
+    // 2. Build the modal
+    const existing = document.getElementById('sync-similar-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'sync-similar-modal';
+    modal.className = 'kmake-modal';
+
+    let groupsHTML = '';
+    groups.forEach((group, gi) => {
+        groupsHTML += `<div class="sync-group" data-group="${gi}">`;
+        groupsHTML += `<div class="sync-group-header">Group ${gi + 1} <span class="sync-group-count">(${group.length} lines)</span></div>`;
+
+        group.forEach((memberIdx, mi) => {
+            const line = lyricLines[memberIdx].line;
+            const text = (line.text || line.syllabus.map(s => s.text).join('')).trim();
+            const hasTiming = line.syllabus.some(s => s.isDone);
+            const timingBadge = hasTiming
+                ? '<span class="sync-badge sync-badge-timed">timed</span>'
+                : '<span class="sync-badge sync-badge-untimed">untimed</span>';
+            const checked = mi === 0 ? 'checked' : '';
+
+            groupsHTML += `
+                <label class="sync-line-option">
+                    <input type="radio" name="sync-source-${gi}" value="${memberIdx}" ${checked} />
+                    <span class="sync-line-text" title="${text}">${text || '(empty)'}</span>
+                    ${timingBadge}
+                    <span class="sync-line-idx">L${line.lineIndex ?? memberIdx}</span>
+                </label>`;
         });
 
-        // Require at least half the words to match to consider it "similar"
-        const minMatch = Math.max(1, Math.ceil(untimedLine.syllabus.length / 2));
-        if (bestMatch && bestScore >= minMatch) {
-            _restoreTimingViaLCS(untimedLine.syllabus, bestMatch.syllabus);
-            _recalcLineTime(untimedLine);
-            syncedCount++;
-        }
+        groupsHTML += `</div>`;
     });
 
+    modal.innerHTML = `
+        <div class="kmake-modal-backdrop" onclick="closeSyncSimilarModal()"></div>
+        <div class="kmake-modal-content" style="max-width:560px;max-height:80vh;display:flex;flex-direction:column">
+            <div class="kmake-modal-header">
+                <i data-lucide="copy" class="modal-header-icon"></i>
+                <h2>Sync Similar Lines</h2>
+                <button onclick="closeSyncSimilarModal()" class="modal-close-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="kmake-modal-body" style="overflow-y:auto;flex:1">
+                <p class="modal-hint">Select the <b>source</b> line in each group. Its timing will be copied to the other lines via LCS matching — existing timing will be overwritten.</p>
+                <div class="sync-groups-container">${groupsHTML}</div>
+            </div>
+            <div class="kmake-modal-footer">
+                <button onclick="closeSyncSimilarModal()" class="btn-secondary">Cancel</button>
+                <button onclick="executeSyncSimilarLines()" class="btn-primary">
+                    <i data-lucide="check" style="width:14px;height:14px;vertical-align:-2px"></i> Apply Sync
+                </button>
+            </div>
+        </div>`;
+
+    document.body.appendChild(modal);
+    // Store the groups + lyricLines mapping on the modal for the executor
+    modal._syncGroups = groups;
+    modal._lyricLines = lyricLines;
+
+    requestAnimationFrame(() => {
+        modal.classList.add('visible');
+        lucide.createIcons();
+    });
+}
+
+function executeSyncSimilarLines() {
+    const modal = document.getElementById('sync-similar-modal');
+    if (!modal) return;
+    const groups = modal._syncGroups;
+    const lyricLines = modal._lyricLines;
+
+    pushUndo();
+    let syncedCount = 0;
+
+    groups.forEach((group, gi) => {
+        const selected = modal.querySelector(`input[name="sync-source-${gi}"]:checked`);
+        if (!selected) return;
+        const sourceMemberIdx = parseInt(selected.value);
+        const sourceLine = lyricLines[sourceMemberIdx].line;
+        const sourceSyls = sourceLine.syllabus || [];
+
+        // Apply source timing to every OTHER line in the group
+        group.forEach(memberIdx => {
+            if (memberIdx === sourceMemberIdx) return;
+            const targetLine = lyricLines[memberIdx].line;
+            const targetSyls = targetLine.syllabus || [];
+            if (targetSyls.length === 0) return;
+
+            // Wipe existing timing on the target so LCS writes fresh
+            targetSyls.forEach(s => {
+                s.time = 0;
+                s.duration = 0;
+                s.isDone = false;
+            });
+
+            // Map timing from source → target via LCS
+            _restoreTimingViaLCS(targetSyls, sourceSyls);
+            _recalcLineTime(targetLine);
+            syncedCount++;
+        });
+    });
+
+    closeSyncSimilarModal();
     rebuildLyricsDOM();
     _scheduleSessionSave();
-    showToast(`Synced ${syncedCount} similar lines`);
+    showToast(`Synced timing to ${syncedCount} line${syncedCount !== 1 ? 's' : ''}`);
+}
+
+function closeSyncSimilarModal() {
+    const m = document.getElementById('sync-similar-modal');
+    if (m) { m.classList.remove('visible'); setTimeout(() => m.remove(), 200); }
 }
