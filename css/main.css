@@ -1907,3 +1907,37 @@ SYNC SIMILAR LINES MODAL
     background: rgba(255, 149, 0, .15);
     color: #ff9500;
 }
+
+/* ============================================================
+SYNC SIMILAR LINES - PER GROUP ACTION
+============================================================ */
+.sync-group-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--md-sys-color-outline-variant);
+}
+
+.sync-group-apply-btn {
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+    border: none;
+    border-radius: 99px;
+    padding: 6px 14px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: filter 0.15s;
+}
+
+.sync-group-apply-btn:hover {
+    filter: brightness(1.15);
+}
+
+.sync-group-apply-btn:active {
+    filter: brightness(0.95);
+}
