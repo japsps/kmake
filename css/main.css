@@ -1820,3 +1820,88 @@ button.enabled:hover {
     border-radius: 4px;
 }
 .kmake-hint-badge button:hover { opacity: 1; }
+
+/* ============================================================
+SYNC SIMILAR LINES MODAL
+============================================================ */
+.sync-groups-container {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.sync-group {
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: var(--md-sys-color-surface-container);
+}
+
+.sync-group-header {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--md-sys-color-primary);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+}
+
+.sync-group-count {
+    font-weight: 400;
+    opacity: .6;
+}
+
+.sync-line-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background .15s;
+}
+
+.sync-line-option:hover {
+    background: var(--md-sys-color-surface-container-high);
+}
+
+.sync-line-option input[type="radio"] {
+    accent-color: var(--md-sys-color-primary);
+    flex-shrink: 0;
+}
+
+.sync-line-text {
+    flex: 1;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--md-sys-color-on-surface);
+}
+
+.sync-line-idx {
+    font-size: 11px;
+    opacity: .45;
+    flex-shrink: 0;
+    font-family: monospace;
+}
+
+.sync-badge {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+}
+
+.sync-badge-timed {
+    background: rgba(76, 217, 100, .15);
+    color: #4cd964;
+}
+
+.sync-badge-untimed {
+    background: rgba(255, 149, 0, .15);
+    color: #ff9500;
+}
