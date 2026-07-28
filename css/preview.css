@@ -50,12 +50,10 @@
 #lyrics-content.preview[data-theme="jd2014"] .playing-line {
     z-index: 999;
     display: flex;
-
     position: absolute;
-    top: calc(30px + var(--offset-y));   /* ← match the FROM keyframe, not 0 */
+    top: calc(30px + var(--offset-y));
     left: calc(0px + var(--offset-x));
-
-    animation: playing-line 300ms ease-out forwards;  /* ← add forwards */
+    animation: playing-line 300ms ease-out forwards;
 }
 
 
