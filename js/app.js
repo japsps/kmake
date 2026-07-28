@@ -1455,7 +1455,7 @@ setInterval(() => {
     if (currentSylRef) {
         const lineObj = tempLyrics[currentSylRef.lineIdx];
         if (lineObj && !lineObj.isTaggedLine) {
-            currentLineEl = lineObj.lineElement; // ← direct reference
+            currentLineEl = lineObj.lineElement; // direct reference
             currentSyl = lineObj.syllabus[currentSylRef.syllabusIdx];
             if (currentSyl?.element) {
                 currentSyl.element.classList.add('playing-word');
@@ -1472,7 +1472,7 @@ setInterval(() => {
         el.classList.toggle('past-word', idx < currentElemIdx);
     });
 
-    // Update line classes using currentLineEl
+    // Update line classes
     if (currentLineEl !== _lastLineEl) {
         elem_lyricsContent.querySelectorAll(
             '.playing-line, .next-playing-line, .next-next-playing-line, .previous-playing-line'
@@ -1482,6 +1482,7 @@ setInterval(() => {
 
         if (currentLineEl && !currentLineEl.classList.contains('tagged-line')) {
             currentLineEl.classList.add('playing-line');
+            console.log('Added playing-line to:', currentLineEl); // DEBUG
 
             const getValidLine = (el, dir) => {
                 let cur = el;
