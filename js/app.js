@@ -3287,7 +3287,7 @@ function closeFindReplace() {
 }
 
 // ============================================================
-// SYNC SIMILAR LINES — interactive group picker (with target checkboxes)
+// SYNC SIMILAR LINES — interactive group picker (with per-group sync)
 // ============================================================
 function syncSimilarLinesTiming() {
     // 1. Build groups of similar lines (≥50% word overlap via LCS dry-run)
@@ -3348,7 +3348,6 @@ function syncSimilarLinesTiming() {
                 ? '<span class="sync-badge sync-badge-timed">timed</span>'
                 : '<span class="sync-badge sync-badge-untimed">untimed</span>';
             
-            // First line is default source, all OTHER lines are default targets (checked)
             const isSource = mi === 0;
             const sourceChecked = isSource ? 'checked' : '';
             const targetChecked = !isSource ? 'checked' : '';
@@ -3363,6 +3362,15 @@ function syncSimilarLinesTiming() {
                 </label>`;
         });
 
+        // NEW: Add the "Sync This Group Only" button at the bottom of each group card
+        groupsHTML += `
+            <div class="sync-group-actions">
+                <button class="sync-group-apply-btn" onclick="executeSyncForGroup(${gi})">
+                    <i data-lucide="check-circle" style="width:12px;height:12px"></i> Sync This Group Only
+                </button>
+            </div>
+        `;
+
         groupsHTML += `</div>`;
     });
 
@@ -3376,15 +3384,15 @@ function syncSimilarLinesTiming() {
             </div>
             <div class="kmake-modal-body" style="overflow-y:auto;flex:1">
                 <p class="modal-hint">
-                    Select the <b>Source</b> (radio) and check the <b>Targets</b> (checkboxes) you want to overwrite. 
-                    Uncheck lines you want to leave untouched.
+                    Pick a <b>Source</b> (radio) and check the <b>Targets</b> (checkboxes). 
+                    Click <b>Sync This Group Only</b> on a specific group, or use <b>Apply Sync</b> at the bottom to sync all checked groups.
                 </p>
                 <div class="sync-groups-container">${groupsHTML}</div>
             </div>
             <div class="kmake-modal-footer">
                 <button onclick="closeSyncSimilarModal()" class="btn-secondary">Cancel</button>
                 <button onclick="executeSyncSimilarLines()" class="btn-primary">
-                    <i data-lucide="check" style="width:14px;height:14px;vertical-align:-2px"></i> Apply Sync
+                    <i data-lucide="check" style="width:14px;height:14px;vertical-align:-2px"></i> Apply Sync to All Checked
                 </button>
             </div>
         </div>`;
@@ -3399,55 +3407,53 @@ function syncSimilarLinesTiming() {
     });
 }
 
-function executeSyncSimilarLines() {
+// NEW: Executes sync for ONE specific group and closes the modal
+function executeSyncForGroup(gi) {
     const modal = document.getElementById('sync-similar-modal');
     if (!modal) return;
+    
     const groups = modal._syncGroups;
     const lyricLines = modal._lyricLines;
+    const group = groups[gi];
+    if (!group) return;
+
+    const selectedSource = modal.querySelector(`input[name="sync-source-${gi}"]:checked`);
+    if (!selectedSource) {
+        showToast('Please select a source line for this group', 2500, 'error');
+        return;
+    }
+
+    const sourceMemberIdx = parseInt(selectedSource.value);
+    const sourceLine = lyricLines[sourceMemberIdx].line;
+    const sourceSyls = sourceLine.syllabus || [];
+
+    const targetCheckboxes = modal.querySelectorAll(`.sync-group[data-group="${gi}"] .sync-target-cb:checked`);
+    if (targetCheckboxes.length === 0) {
+        showToast('Please check at least one target line', 2500, 'error');
+        return;
+    }
 
     pushUndo();
     let syncedCount = 0;
 
-    groups.forEach((group, gi) => {
-        const selectedSource = modal.querySelector(`input[name="sync-source-${gi}"]:checked`);
-        if (!selectedSource) return;
+    targetCheckboxes.forEach(cb => {
+        const memberIdx = parseInt(cb.dataset.idx);
+        if (memberIdx === sourceMemberIdx) return; 
         
-        const sourceMemberIdx = parseInt(selectedSource.value);
-        const sourceLine = lyricLines[sourceMemberIdx].line;
-        const sourceSyls = sourceLine.syllabus || [];
+        const targetLine = lyricLines[memberIdx].line;
+        const targetSyls = targetLine.syllabus || [];
+        if (targetSyls.length === 0) return;
 
-        // Get only the checked target checkboxes for this specific group
-        const targetCheckboxes = modal.querySelectorAll(`.sync-group[data-group="${gi}"] .sync-target-cb:checked`);
-        
-        targetCheckboxes.forEach(cb => {
-            const memberIdx = parseInt(cb.dataset.idx);
-            if (memberIdx === sourceMemberIdx) return; // Skip if they accidentally checked the source
-            
-            const targetLine = lyricLines[memberIdx].line;
-            const targetSyls = targetLine.syllabus || [];
-            if (targetSyls.length === 0) return;
-
-            // Wipe existing timing on the target
-            targetSyls.forEach(s => {
-                s.time = 0;
-                s.duration = 0;
-                s.isDone = false;
-            });
-
-            // Map timing from source → target via LCS
-            _restoreTimingViaLCS(targetSyls, sourceSyls);
-            _recalcLineTime(targetLine);
-            syncedCount++;
-        });
+        targetSyls.forEach(s => { s.time = 0; s.duration = 0; s.isDone = false; });
+        _restoreTimingViaLCS(targetSyls, sourceSyls);
+        _recalcLineTime(targetLine);
+        syncedCount++;
     });
 
     closeSyncSimilarModal();
     rebuildLyricsDOM();
     _scheduleSessionSave();
-    showToast(`Synced timing to ${syncedCount} line${syncedCount !== 1 ? 's' : ''}`);
+    showToast(`Synced ${syncedCount} line${syncedCount !== 1 ? 's' : ''} in Group ${gi + 1}`);
 }
 
-function closeSyncSimilarModal() {
-    const m = document.getElementById('sync-similar-modal');
-    if (m) { m.classList.remove('visible'); setTimeout(() => m.remove(), 200); }
-}
+// (Keep your existing executeSyncSimilarLines and closeSyncSimilarModal functions exactly as they were)
