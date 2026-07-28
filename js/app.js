@@ -3287,7 +3287,7 @@ function closeFindReplace() {
 }
 
 // ============================================================
-// SYNC SIMILAR LINES — interactive group picker
+// SYNC SIMILAR LINES — interactive group picker (with target checkboxes)
 // ============================================================
 function syncSimilarLinesTiming() {
     // 1. Build groups of similar lines (≥50% word overlap via LCS dry-run)
@@ -3314,13 +3314,11 @@ function syncSimilarLinesTiming() {
                 lyricLines[i].line.syllabus.length,
                 lyricLines[j].line.syllabus.length
             );
-            // ≥50% of the shorter line's words must match
             if (score >= Math.max(1, Math.ceil(minLen / 2))) {
                 group.push(j);
                 used.add(j);
             }
         }
-
         if (group.length > 1) groups.push(group);
     }
 
@@ -3349,11 +3347,16 @@ function syncSimilarLinesTiming() {
             const timingBadge = hasTiming
                 ? '<span class="sync-badge sync-badge-timed">timed</span>'
                 : '<span class="sync-badge sync-badge-untimed">untimed</span>';
-            const checked = mi === 0 ? 'checked' : '';
+            
+            // First line is default source, all OTHER lines are default targets (checked)
+            const isSource = mi === 0;
+            const sourceChecked = isSource ? 'checked' : '';
+            const targetChecked = !isSource ? 'checked' : '';
 
             groupsHTML += `
                 <label class="sync-line-option">
-                    <input type="radio" name="sync-source-${gi}" value="${memberIdx}" ${checked} />
+                    <input type="radio" name="sync-source-${gi}" value="${memberIdx}" ${sourceChecked} title="Select as Source" />
+                    <input type="checkbox" class="sync-target-cb" data-idx="${memberIdx}" ${targetChecked} title="Include in sync" />
                     <span class="sync-line-text" title="${text}">${text || '(empty)'}</span>
                     ${timingBadge}
                     <span class="sync-line-idx">L${line.lineIndex ?? memberIdx}</span>
@@ -3365,14 +3368,17 @@ function syncSimilarLinesTiming() {
 
     modal.innerHTML = `
         <div class="kmake-modal-backdrop" onclick="closeSyncSimilarModal()"></div>
-        <div class="kmake-modal-content" style="max-width:560px;max-height:80vh;display:flex;flex-direction:column">
+        <div class="kmake-modal-content" style="max-width:600px;max-height:80vh;display:flex;flex-direction:column">
             <div class="kmake-modal-header">
                 <i data-lucide="copy" class="modal-header-icon"></i>
                 <h2>Sync Similar Lines</h2>
                 <button onclick="closeSyncSimilarModal()" class="modal-close-btn"><i data-lucide="x"></i></button>
             </div>
             <div class="kmake-modal-body" style="overflow-y:auto;flex:1">
-                <p class="modal-hint">Select the <b>source</b> line in each group. Its timing will be copied to the other lines via LCS matching — existing timing will be overwritten.</p>
+                <p class="modal-hint">
+                    Select the <b>Source</b> (radio) and check the <b>Targets</b> (checkboxes) you want to overwrite. 
+                    Uncheck lines you want to leave untouched.
+                </p>
                 <div class="sync-groups-container">${groupsHTML}</div>
             </div>
             <div class="kmake-modal-footer">
@@ -3384,7 +3390,6 @@ function syncSimilarLinesTiming() {
         </div>`;
 
     document.body.appendChild(modal);
-    // Store the groups + lyricLines mapping on the modal for the executor
     modal._syncGroups = groups;
     modal._lyricLines = lyricLines;
 
@@ -3404,20 +3409,25 @@ function executeSyncSimilarLines() {
     let syncedCount = 0;
 
     groups.forEach((group, gi) => {
-        const selected = modal.querySelector(`input[name="sync-source-${gi}"]:checked`);
-        if (!selected) return;
-        const sourceMemberIdx = parseInt(selected.value);
+        const selectedSource = modal.querySelector(`input[name="sync-source-${gi}"]:checked`);
+        if (!selectedSource) return;
+        
+        const sourceMemberIdx = parseInt(selectedSource.value);
         const sourceLine = lyricLines[sourceMemberIdx].line;
         const sourceSyls = sourceLine.syllabus || [];
 
-        // Apply source timing to every OTHER line in the group
-        group.forEach(memberIdx => {
-            if (memberIdx === sourceMemberIdx) return;
+        // Get only the checked target checkboxes for this specific group
+        const targetCheckboxes = modal.querySelectorAll(`.sync-group[data-group="${gi}"] .sync-target-cb:checked`);
+        
+        targetCheckboxes.forEach(cb => {
+            const memberIdx = parseInt(cb.dataset.idx);
+            if (memberIdx === sourceMemberIdx) return; // Skip if they accidentally checked the source
+            
             const targetLine = lyricLines[memberIdx].line;
             const targetSyls = targetLine.syllabus || [];
             if (targetSyls.length === 0) return;
 
-            // Wipe existing timing on the target so LCS writes fresh
+            // Wipe existing timing on the target
             targetSyls.forEach(s => {
                 s.time = 0;
                 s.duration = 0;
