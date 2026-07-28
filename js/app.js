@@ -3362,10 +3362,10 @@ function syncSimilarLinesTiming() {
                 </label>`;
         });
 
-        // NEW: Add the "Sync This Group Only" button at the bottom of each group card
+                // NEW: Add the "Sync This Group Only" button at the bottom of each group card
         groupsHTML += `
             <div class="sync-group-actions">
-                <button class="sync-group-apply-btn" onclick="executeSyncForGroup(${gi})">
+                <button type="button" class="sync-group-apply-btn" onclick="executeSyncForGroup(${gi})">
                     <i data-lucide="check-circle" style="width:12px;height:12px"></i> Sync This Group Only
                 </button>
             </div>
