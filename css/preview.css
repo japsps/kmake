@@ -72,19 +72,6 @@
     color: #fff;
 }
 
-#lyrics-content.preview[data-theme="jd2014"] .next-playing-line {
-    z-index: 999;
-    display: flex;
-
-    position: absolute;
-    top: calc(30px + var(--offset-y));
-    left: calc(0px + var(--offset-x));
-
-    opacity: 0;
-    animation: next-line 200ms 100ms linear forwards;
-
-}
-
 #lyrics-content.preview[data-theme="jd2014"] .next-playing-line .lyrics-word {
     color: #ffffff72 !important;
 }
