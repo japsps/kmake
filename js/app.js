@@ -1743,6 +1743,9 @@ if (typeof tippy !== 'undefined') {
     <button onclick="importJSON()">
         <i data-lucide="file-code" class="menu-icon"></i> Import JSON
     </button>
+    <button onclick="importLRC()">
+        <i data-lucide="file-audio" class="menu-icon"></i> Import LRC / eLRC
+    </button>
     <div class="dropdown-separator"></div>
     <span class="dropdown-section">Export</span>
     <button onclick="exportNewKpoeJSON()">
@@ -1783,6 +1786,17 @@ if (typeof tippy !== 'undefined') {
     </button>
     <button onclick="importYoutube()">
         <i data-lucide="youtube" class="menu-icon"></i> Load from YouTube…
+    </button>
+    <div class="dropdown-separator"></div>
+    <span class="dropdown-section">Tools</span>
+    <button onclick="openBatchTimeShift()">
+        <i data-lucide="clock" class="menu-icon"></i> Batch Time Shift...
+    </button>
+    <button onclick="openFindReplace()">
+        <i data-lucide="search" class="menu-icon"></i> Find & Replace...
+    </button>
+    <button onclick="syncSimilarLinesTiming()">
+        <i data-lucide="copy" class="menu-icon"></i> Sync Similar Lines
     </button>
     <div class="dropdown-separator"></div>
     <button onclick="safeReset()">
@@ -3013,3 +3027,306 @@ elem_lyricsInput.addEventListener('input', function() {
         Object.assign(metadata.agents, detectedAgents)
     }
 })
+
+// ============================================================
+// NEW FEATURE: LRC / eLRC IMPORTER
+// ============================================================
+function importLRC() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.lrc,.elrc,.txt';
+    input.onchange = e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = evt => parseLRCContent(evt.target.result);
+        reader.readAsText(file);
+    };
+    input.click();
+}
+
+function parseTimeToMs(min, sec, msStr) {
+    let ms = 0;
+    if (msStr) {
+        msStr = msStr.replace(/[.:]/, '');
+        if (msStr.length === 1) ms = parseInt(msStr) * 100;
+        else if (msStr.length === 2) ms = parseInt(msStr) * 10;
+        else if (msStr.length >= 3) ms = parseInt(msStr.substring(0, 3));
+    }
+    return (parseInt(min) * 60000) + (parseInt(sec) * 1000) + ms;
+}
+
+function parseLRCContent(text) {
+    reset();
+    const lines = text.split('\n');
+    const newLyrics = [];
+    let plainTextLines = [];
+    let lineIndex = 0;
+
+    lines.forEach(rawLine => {
+        let line = rawLine.trim();
+        if (!line) return;
+
+        // Match line-level time tag [mm:ss.xx]
+        const lineTimeMatch = line.match(/^\[(\d{1,2}):(\d{2})([.:]\d{1,3})?\]/);
+        if (!lineTimeMatch) return; 
+
+        const lineTime = parseTimeToMs(lineTimeMatch[1], lineTimeMatch[2], lineTimeMatch[3]);
+        let lineText = line.substring(lineTimeMatch[0].length).trim();
+        if (!lineText) return;
+
+        const syllabus = [];
+        const wordTimeRegex = /<(\d{1,2}):(\d{2})([.:]\d{1,3})?>/g;
+        let hasWordTimes = wordTimeRegex.test(lineText);
+        wordTimeRegex.lastIndex = 0;
+
+        if (hasWordTimes) {
+            // eLRC parsing (word-level timing)
+            let match;
+            let currentWordTime = lineTime;
+            let lastIndex = 0;
+            while ((match = wordTimeRegex.exec(lineText)) !== null) {
+                const textBefore = lineText.substring(lastIndex, match.index).trim();
+                if (textBefore) {
+                    syllabus.push({ time: currentWordTime, duration: 0, text: textBefore, isDone: true, element: null });
+                }
+                currentWordTime = parseTimeToMs(match[1], match[2], match[3]);
+                lastIndex = match.index + match[0].length;
+            }
+            const remainingText = lineText.substring(lastIndex).trim();
+            if (remainingText) {
+                syllabus.push({ time: currentWordTime, duration: 0, text: remainingText, isDone: true, element: null });
+            }
+        } else {
+            // Standard LRC parsing (line-level timing only)
+            const words = splitTextWithSeparators(lineText);
+            words.forEach((w, i) => {
+                syllabus.push({
+                    time: i === 0 ? lineTime : 0, 
+                    duration: 0,
+                    text: w,
+                    isDone: i === 0,
+                    element: null
+                });
+            });
+        }
+
+        const lineObj = {
+            time: lineTime,
+            duration: 0,
+            text: lineText,
+            syllabus: syllabus,
+            element: { key: 'L' + lineIndex, singer: 'v1', songPartIndex: -1 },
+            isTaggedLine: false,
+            tag: null,
+            lineIndex: lineIndex,
+            lineElement: null
+        };
+        newLyrics.push(lineObj);
+        plainTextLines.push(lineText);
+        lineIndex++;
+    });
+
+    tempLyrics = newLyrics;
+    elem_lyricsInput.value = plainTextLines.join('\n');
+    rebuildLyricsDOM();
+    buildAllSyllables();
+    _recalcMissingDurations(); // Auto-calculate gaps between words
+    _seekToFirstUnsynced();
+    _scheduleSessionSave();
+    showToast('LRC/eLRC imported successfully');
+}
+
+// ============================================================
+// NEW FEATURE: BATCH TIME SHIFT
+// ============================================================
+function openBatchTimeShift() {
+    const existing = document.getElementById('batch-shift-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'batch-shift-modal';
+    modal.className = 'kmake-modal';
+    modal.innerHTML = `
+        <div class="kmake-modal-backdrop" onclick="closeBatchTimeShift()"></div>
+        <div class="kmake-modal-content" style="max-width:400px">
+            <div class="kmake-modal-header">
+                <i data-lucide="clock" class="modal-header-icon"></i>
+                <h2>Batch Time Shift</h2>
+                <button onclick="closeBatchTimeShift()" class="modal-close-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="kmake-modal-body">
+                <p class="modal-hint">Shift all timing by a specific amount. Use positive values to delay, negative to advance.</p>
+                <div class="meta-field">
+                    <label>Offset (milliseconds)</label>
+                    <input type="number" id="batch-shift-input" value="0" placeholder="e.g. 500 or -200" />
+                </div>
+            </div>
+            <div class="kmake-modal-footer">
+                <button onclick="closeBatchTimeShift()" class="btn-secondary">Cancel</button>
+                <button onclick="executeBatchTimeShift()" class="btn-primary">Apply Shift</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => {
+        modal.classList.add('visible');
+        lucide.createIcons();
+        document.getElementById('batch-shift-input').focus();
+    });
+}
+
+function executeBatchTimeShift() {
+    const input = document.getElementById('batch-shift-input');
+    const offsetMs = parseInt(input.value);
+    if (isNaN(offsetMs) || offsetMs === 0) {
+        showToast('Please enter a valid non-zero offset', 2500, 'error');
+        return;
+    }
+    closeBatchTimeShift();
+    
+    pushUndo();
+    tempLyrics.forEach(line => {
+        if (line.isTaggedLine) return;
+        line.syllabus.forEach(syl => {
+            if (syl.isDone || syl.time > 0) {
+                syl.time = Math.max(0, syl.time + offsetMs);
+            }
+        });
+        _recalcLineTime(line);
+    });
+    rebuildLyricsDOM();
+    _scheduleSessionSave();
+    showToast(`Shifted timing by ${offsetMs}ms`);
+}
+
+function closeBatchTimeShift() {
+    const m = document.getElementById('batch-shift-modal');
+    if (m) { m.classList.remove('visible'); setTimeout(() => m.remove(), 200); }
+}
+
+// ============================================================
+// NEW FEATURE: FIND & REPLACE (WITH OPTIONAL LCS)
+// ============================================================
+function openFindReplace() {
+    const existing = document.getElementById('find-replace-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'find-replace-modal';
+    modal.className = 'kmake-modal';
+    modal.innerHTML = `
+        <div class="kmake-modal-backdrop" onclick="closeFindReplace()"></div>
+        <div class="kmake-modal-content" style="max-width:450px">
+            <div class="kmake-modal-header">
+                <i data-lucide="search" class="modal-header-icon"></i>
+                <h2>Find & Replace</h2>
+                <button onclick="closeFindReplace()" class="modal-close-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="kmake-modal-body">
+                <div class="meta-field">
+                    <label>Find</label>
+                    <input type="text" id="fr-find-input" placeholder="Text to find" />
+                </div>
+                <div class="meta-field">
+                    <label>Replace with</label>
+                    <input type="text" id="fr-replace-input" placeholder="Replacement text" />
+                </div>
+                <label class="dropdown-toggle" style="margin-top:10px">
+                    <input type="checkbox" id="fr-lcs-checkbox" checked />
+                    Re-apply timing via LCS matching
+                </label>
+                <p class="modal-hint" style="margin-top:8px">If checked, existing timing will be preserved and mapped to the new text. If unchecked, timing will be cleared.</p>
+            </div>
+            <div class="kmake-modal-footer">
+                <button onclick="closeFindReplace()" class="btn-secondary">Cancel</button>
+                <button onclick="executeFindReplace()" class="btn-primary">Replace All</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => {
+        modal.classList.add('visible');
+        lucide.createIcons();
+        document.getElementById('fr-find-input').focus();
+    });
+}
+
+function executeFindReplace() {
+    const findStr = document.getElementById('fr-find-input').value;
+    const replaceStr = document.getElementById('fr-replace-input').value;
+    const useLCS = document.getElementById('fr-lcs-checkbox').checked;
+
+    if (!findStr) {
+        showToast('Find string cannot be empty', 2500, 'error');
+        return;
+    }
+
+    closeFindReplace();
+    pushUndo();
+
+    if (useLCS) {
+        // Modifying textarea and calling parseLyrics() automatically triggers the built-in LCS restoration
+        elem_lyricsInput.value = elem_lyricsInput.value.split(findStr).join(replaceStr);
+        parseLyrics(); 
+    } else {
+        // Clear all timing first, then replace text
+        tempLyrics.forEach(line => {
+            if(line.isTaggedLine) return;
+            line.syllabus.forEach(s => { s.time = 0; s.duration = 0; s.isDone = false; });
+            line.time = 0; line.duration = 0;
+        });
+        elem_lyricsInput.value = elem_lyricsInput.value.split(findStr).join(replaceStr);
+        parseLyrics();
+    }
+    _scheduleSessionSave();
+    showToast('Find & Replace completed');
+}
+
+function closeFindReplace() {
+    const m = document.getElementById('find-replace-modal');
+    if (m) { m.classList.remove('visible'); setTimeout(() => m.remove(), 200); }
+}
+
+// ============================================================
+// SYNC SIMILAR LINES TIMING
+// ============================================================
+function syncSimilarLinesTiming() {
+    pushUndo();
+    const timedLines = tempLyrics.filter(l => !l.isTaggedLine && l.syllabus.some(s => s.isDone));
+    const untimedLines = tempLyrics.filter(l => !l.isTaggedLine && !l.syllabus.some(s => s.isDone));
+
+    if (untimedLines.length === 0) {
+        showToast('All lines already have timing');
+        return;
+    }
+    if (timedLines.length === 0) {
+        showToast('No timed lines to sync from', 2500, 'error');
+        return;
+    }
+
+    let syncedCount = 0;
+    untimedLines.forEach(untimedLine => {
+        let bestMatch = null;
+        let bestScore = 0;
+        
+        // Find the best matching timed line using LCS dryRun
+        timedLines.forEach(timedLine => {
+            const score = _restoreTimingViaLCS(untimedLine.syllabus, timedLine.syllabus, true);
+            if (score > bestScore) {
+                bestScore = score;
+                bestMatch = timedLine;
+            }
+        });
+
+        // Require at least half the words to match to consider it "similar"
+        const minMatch = Math.max(1, Math.ceil(untimedLine.syllabus.length / 2));
+        if (bestMatch && bestScore >= minMatch) {
+            _restoreTimingViaLCS(untimedLine.syllabus, bestMatch.syllabus);
+            _recalcLineTime(untimedLine);
+            syncedCount++;
+        }
+    });
+
+    rebuildLyricsDOM();
+    _scheduleSessionSave();
+    showToast(`Synced ${syncedCount} similar lines`);
+}
