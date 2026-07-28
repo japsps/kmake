@@ -250,14 +250,6 @@
     animation: next-line 300ms 400ms linear forwards;
 }
 
-#lyrics-content.preview[data-theme="jd2014"] .playing-line {
-  z-index: 999;
-  display: flex;
-  position: absolute;
-  top: calc(0px + var(--offset-y));
-  left: calc(0px + var(--offset-x));
-  animation: playing-line 200ms 100ms linear forwards;
-}
 
 #lyrics-content.preview[data-theme="karafun"] .lyrics-line.odd {
     top: calc(0px + var(--offset-y));
