@@ -55,7 +55,7 @@
     top: calc(0px + var(--offset-y));
     left: calc(0px + var(--offset-x));
 
-    animation: playing-line 300ms ease-out;
+    animation: playing-line 300ms ease-out both;  /* ← added "both" */
 }
 
 
