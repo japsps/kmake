@@ -82,7 +82,6 @@ for (let i = 0; i < elem_part_sortable.length; i++) {
         }
     })
 }
-
 function msToTime(duration) {
     let milliseconds = parseInt((duration % 1000) / 10)
     let seconds = parseInt((duration / 1000) % 60)
@@ -92,7 +91,6 @@ function msToTime(duration) {
     minutes = (minutes < 10) ? '0' + minutes : minutes
     return minutes + ':' + seconds + '.' + milliseconds
 }
-
 function splitTextWithSeparators(text) {
     if (!text) return ['']
     if (text.trim() === '') {
@@ -140,16 +138,13 @@ function splitTextWithSeparators(text) {
     }
     return words.length === 0 ? [text] : words
 }
-
 function isValidTag(text) {
     const trimmed = text.trim()
     return trimmed.startsWith('#') && trimmed.length > 1
 }
-
 function extractTagName(text) {
     return text.trim().substring(1)
 }
-
 function extractAgentDeclaration(text) {
     const regex = /^\[agent:(person|group|other|virtual)=([^:]+)(?::(.*))?\]$/i;
     const match = text.trim().match(regex);
@@ -162,7 +157,6 @@ function extractAgentDeclaration(text) {
     }
     return null;
 }
-
 function reset() {
     currentLyrics = []
     tempLyrics = []
@@ -231,7 +225,6 @@ function buildAllSyllables() {
         isEndOfLine: true
     })
 }
-
 function importSong() {
     elem_musicInput.type = 'file'
     elem_musicInput.accept = '.mp3, .wav, .ogg, .flac, .m4a, .mp4, .opus, .mkv, .webm, .m3u8'
@@ -239,7 +232,6 @@ function importSong() {
     elem_navbar.setAttribute('visible', 'false')
     isVisible = false
 }
-
 function importYoutube() {
     const url = prompt("Enter YouTube URL:");
     if (!url) return;
@@ -284,7 +276,6 @@ function importYoutube() {
         alert("Invalid YouTube URL");
     }
 }
-
 function importJSON(files) {
     const input = document.createElement('input')
     input.type = 'file'
@@ -326,7 +317,6 @@ function importJSON(files) {
         input.dispatchEvent(new Event('change'))
     }
 }
-
 function detectKpoeFormat(jsonData) {
     const lyrics = jsonData.lyrics
     if (Array.isArray(lyrics) && lyrics.length > 0 && Array.isArray(lyrics[0].syllabus)) {
@@ -334,7 +324,6 @@ function detectKpoeFormat(jsonData) {
     }
     return 'v1'
 }
-
 function parseNewKpoeFormat(jsonData) {
     const meta = jsonData.metadata || {}
     metadata.source = meta.source || ''
@@ -425,7 +414,6 @@ function parseNewKpoeFormat(jsonData) {
     _seekToFirstUnsynced()
     _scheduleSessionSave()
 }
-
 function parseLegacyToV2(jsonData) {
     const raw = Array.isArray(jsonData) ? jsonData : (jsonData.lyrics || [])
     const plainText = jsonData.plainText || ''
@@ -541,7 +529,6 @@ function parseLegacyToV2(jsonData) {
     _seekToFirstUnsynced()
     _scheduleSessionSave()
 }
-
 function parseJsonToLyrics(jsonData) {
     const wrapper = Array.isArray(jsonData) ? {
         lyrics: jsonData
@@ -549,7 +536,6 @@ function parseJsonToLyrics(jsonData) {
     parseLegacyToV2(wrapper)
     return tempLyrics
 }
-
 function rebuildLyricsDOM() {
     // Reset highlight tracking variables to force the interval to re-evaluate
     _lastSylRef = null;
@@ -590,7 +576,6 @@ function rebuildLyricsDOM() {
         lineDisplayIdx++
     })
 }
-
 function _seekToFirstUnsynced() {
     currentWordIndex = allSyllables.length // default: all done
     for (let i = 0; i < allSyllables.length; i++) {
@@ -604,13 +589,13 @@ function _seekToFirstUnsynced() {
         }
     }
 }
-
 function cleanText(text) {
     return (text || '').replace(/[\]\-\s]/g, '').toLowerCase()
 }
 // LCS timing restore shared by exact and fuzzy line matching.
 // With dryRun = true it only scores the overlap without changing anything.
-function _restoreTimingViaLCS(syllabus, oldSyls, dryRun = false) {
+// With durationOnly = true it only copies the duration, leaving the target's start time intact.
+function _restoreTimingViaLCS(syllabus, oldSyls, dryRun = false, durationOnly = false) {
     const O = oldSyls.length
     const N = syllabus.length
     if (!O || !N) return 0
@@ -629,7 +614,7 @@ function _restoreTimingViaLCS(syllabus, oldSyls, dryRun = false) {
     const score = dp[O][N]
     if (dryRun || score === 0) return score
     let oi = O,
-        ni = N
+    ni = N
     const matches = []
     while (oi > 0 && ni > 0) {
         if (cleanText(oldSyls[oi - 1].text) === cleanText(syllabus[ni - 1].text)) {
@@ -645,14 +630,20 @@ function _restoreTimingViaLCS(syllabus, oldSyls, dryRun = false) {
     for (const [oldIdx, newIdx] of matches) {
         const oldSyl = oldSyls[oldIdx]
         if (oldSyl.isDone) {
-            syllabus[newIdx].time = oldSyl.time
-            syllabus[newIdx].duration = oldSyl.duration
-            syllabus[newIdx].isDone = oldSyl.isDone
+            if (durationOnly) {
+                // ONLY sync duration, keep target's original start time
+                syllabus[newIdx].duration = oldSyl.duration;
+                syllabus[newIdx].isDone = true;
+            } else {
+                // Default behavior: sync both time and duration
+                syllabus[newIdx].time = oldSyl.time
+                syllabus[newIdx].duration = oldSyl.duration
+                syllabus[newIdx].isDone = oldSyl.isDone
+            }
         }
     }
     return score
 }
-
 function parseLyrics() {
     if (elem_lyricsInput.value.trim() === '') return
     elem_lyricsContent.innerHTML = ''
@@ -837,8 +828,8 @@ function parseLyrics() {
         unmatchedNewLines.forEach(entry => {
             if (!unusedOldLines.length) return
             let bestIdx = -1,
-                bestScore = 0,
-                bestDist = Infinity
+            bestScore = 0,
+            bestDist = Infinity
             unusedOldLines.forEach((oldLine, oi) => {
                 const score = _restoreTimingViaLCS(entry.syllabus, oldLine.syllabus || [], true)
                 // Tie-break on position so duplicate lines (choruses) pair in order
@@ -872,7 +863,6 @@ function parseLyrics() {
     _seekToFirstUnsynced()
     _scheduleSessionSave()
 }
-
 function _recalcMissingDurations() {
     for (let i = 0; i < allSyllables.length - 1; i++) {
         const entry = allSyllables[i]
@@ -911,7 +901,6 @@ function _syncPrevDuration(lineIdx, syllabusIdx) {
         if (prev.element) prev.element.style.setProperty('--duration', prev.duration + 'ms')
     }
 }
-
 function nextWord() {
     const NextWordButton = document.getElementById('nextword-button')
     if (NextWordButton) {
@@ -996,7 +985,6 @@ function nextWord() {
     currentWordIndex++
     _scheduleSessionSave()
 }
-
 function openWord(wordIndex) {
     if (wordIndex < 0 || wordIndex >= allSyllables.length) return
     const {
@@ -1037,7 +1025,6 @@ function openWord(wordIndex) {
     if (empty) empty.style.display = 'none'
     if (filled) filled.style.display = 'flex'
 }
-
 function unselect() {
     selectedWordIndex = -1
     document.querySelectorAll('.opened-word').forEach(el => el.classList.remove('opened-word'))
@@ -1053,15 +1040,13 @@ function unselect() {
     if (empty) empty.style.display = 'flex'
     if (filled) filled.style.display = 'none'
 }
-
 function isRTL(s) {
     if (!s || typeof s !== 'string') return false
     var ltrChars = 'A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02B8\u0300-\u0590\u0800-\u1FFF' + '\u2C00-\uFB1C\uFDFE-\uFE6F\uFEFD-\uFFFF',
-        rtlChars = '\u0591-\u07FF\uFB1D-\uFDFD\uFE70-\uFEFC',
-        rtlDirCheck = new RegExp('^[^' + ltrChars + ']*[' + rtlChars + ']')
+    rtlChars = '\u0591-\u07FF\uFB1D-\uFDFD\uFE70-\uFEFC',
+    rtlDirCheck = new RegExp('^[^' + ltrChars + ']*[' + rtlChars + ']')
     return rtlDirCheck.test(s)
 }
-
 function playPause() {
     const playPauseButton = document.getElementById('playpause-button')
     if (playPauseButton) {
@@ -1077,7 +1062,6 @@ function playPause() {
     }
 }
 let _editScrollTop = 0
-
 function previewToggle() {
     const content = document.getElementById('lyrics-content')
     const enteringPreview = !content.classList.contains('preview')
@@ -1106,10 +1090,9 @@ document.getElementById('preview-theme')?.addEventListener('change', () => {
     const sel = document.getElementById('preview-theme')
     if (sel) document.getElementById('lyrics-content').setAttribute('data-theme', sel.value)
 })
-
 function _recomputeSongPartTimeline() {
     const partFirstTime = {},
-        partLastEnd = {}
+    partLastEnd = {}
     tempLyrics.forEach(line => {
         if (line.isTaggedLine) return
         const pi = line.element?.songPartIndex
@@ -1166,7 +1149,6 @@ function _recomputeSongPartTimeline() {
         })
     }
 }
-
 function prepareNewKpoeJSON(cleanTiming = true) {
     if (!tempLyrics || tempLyrics.length === 0) return new Blob(['{}'], {
         type: 'application/json'
@@ -1262,11 +1244,9 @@ function prepareLegacyJSON(cleanTiming = false) {
         type: 'application/json'
     })
 }
-
 function prepareJSON(cleanTiming = true) {
     return prepareLegacyJSON(cleanTiming)
 }
-
 function prepareLRC() {
     if (!tempLyrics || tempLyrics.length === 0) return new Blob([''], {
         type: 'text/plain'
@@ -1284,7 +1264,6 @@ function prepareLRC() {
         type: 'text/plain'
     })
 }
-
 function prepareELRC() {
     if (!tempLyrics || tempLyrics.length === 0) return new Blob([''], {
         type: 'text/plain'
@@ -1308,7 +1287,6 @@ function prepareELRC() {
         type: 'text/plain'
     })
 }
-
 function exportNewKpoeJSON() {
     if (!metadataEverOpened) {
         openMetadataEditor(() => exportNewKpoeJSON());
@@ -1316,16 +1294,13 @@ function exportNewKpoeJSON() {
     }
     _runExport(() => downloadBlob(prepareNewKpoeJSON()))
 }
-
 function exportLegacyJSON() {
     // Plain JDNow-style word array — no metadata prompt needed
     downloadBlob(prepareLegacyJSON(false), 'json')
 }
-
 function exportJSON() {
     exportNewKpoeJSON()
 }
-
 function exportLRC() {
     if (!metadataEverOpened) {
         openMetadataEditor(() => exportLRC());
@@ -1333,7 +1308,6 @@ function exportLRC() {
     }
     _runExport(() => downloadBlob(prepareLRC(), 'lrc'))
 }
-
 function exportELRC() {
     if (!metadataEverOpened) {
         openMetadataEditor(() => exportELRC());
@@ -1341,7 +1315,6 @@ function exportELRC() {
     }
     _runExport(() => downloadBlob(prepareELRC(), 'lrc'))
 }
-
 function downloadBlob(blob, format = 'json') {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -1350,7 +1323,6 @@ function downloadBlob(blob, format = 'json') {
     a.click()
     setTimeout(() => URL.revokeObjectURL(url), 100)
 }
-
 function exportKMAKE() {
     if (!music_file) {
         alert('Please import a music file first.');
@@ -1370,7 +1342,6 @@ function exportKMAKE() {
         }).then(content => downloadBlob(content, 'kmake'))
     })
 }
-
 function importKMAKE() {
     const input = document.createElement('input')
     input.type = 'file'
@@ -1422,19 +1393,15 @@ document.addEventListener('keydown', function(event) {
 // ======= UPDATED INTERVAL WITH FLICKER FIX =======
 let _lastSylRef = null;
 let _lastLineEl = null;
-
 setInterval(() => {
     if (!tempLyrics || tempLyrics.length === 0) return;
-
     if (player.paused) {
         document.getElementById('lyrics-content').classList.add('paused');
     } else {
         document.getElementById('lyrics-content').classList.remove('paused');
     }
-
     const time = player.currentTime * 1000;
     const EPS = 1;
-
     let currentSylRef = null;
     for (let i = 0; i < allSyllables.length; i++) {
         const { lineIdx, syllabusIdx } = allSyllables[i];
@@ -1446,10 +1413,8 @@ setInterval(() => {
         }
         currentSylRef = allSyllables[i];
     }
-
     const playingEl = document.querySelector('.playing-word');
     if (playingEl) playingEl.classList.remove('playing-word');
-
     let currentSyl = null;
     let currentLineEl = null;
     if (currentSylRef) {
@@ -1462,16 +1427,14 @@ setInterval(() => {
             }
         }
     }
-
     // Update past-word
     const allSylElems = Array.from(document.querySelectorAll('.lyrics-word'))
-        .filter(el => el.id.startsWith('syl-'));
+    .filter(el => el.id.startsWith('syl-'));
     const currentElem = currentSyl?.element;
     const currentElemIdx = currentElem ? allSylElems.indexOf(currentElem) : -1;
     allSylElems.forEach((el, idx) => {
         el.classList.toggle('past-word', idx < currentElemIdx);
     });
-
     // Update line classes
     if (currentLineEl !== _lastLineEl) {
         elem_lyricsContent.querySelectorAll(
@@ -1479,11 +1442,8 @@ setInterval(() => {
         ).forEach(el => el.classList.remove(
             'playing-line', 'next-playing-line', 'next-next-playing-line', 'previous-playing-line'
         ));
-
         if (currentLineEl && !currentLineEl.classList.contains('tagged-line')) {
             currentLineEl.classList.add('playing-line');
-            console.log('Added playing-line to:', currentLineEl); // DEBUG
-
             const getValidLine = (el, dir) => {
                 let cur = el;
                 while (cur) {
@@ -1492,7 +1452,6 @@ setInterval(() => {
                 }
                 return null;
             };
-
             const nextLine = getValidLine(currentLineEl, 'next');
             if (nextLine) {
                 nextLine.classList.add('next-playing-line');
@@ -1501,7 +1460,6 @@ setInterval(() => {
             }
             const prevLine = getValidLine(currentLineEl, 'previous');
             if (prevLine) prevLine.classList.add('previous-playing-line');
-
             if (document.getElementById('lyrics-content').classList.contains('preview')) {
                 const lyricsContent = document.getElementById('lyrics-content');
                 lyricsContent.scrollTop = currentLineEl.offsetTop - lyricsContent.clientHeight / 2 + 120;
@@ -1509,7 +1467,6 @@ setInterval(() => {
         }
         _lastLineEl = currentLineEl;
     }
-
     const currentText = currentSyl?.text || '';
     if (currentText !== played_word) {
         played_word = currentText;
@@ -1689,7 +1646,6 @@ document.getElementById('properties-preview')?.addEventListener('click', functio
 })
 // App "load" handling — hides the spinner and offers session restore
 let _loadHandled = false
-
 function _onAppLoad() {
     if (_loadHandled) return
     _loadHandled = true
@@ -1712,7 +1668,6 @@ if (typeof tippy !== 'undefined') {
         placement: 'bottom-start',
         offset: [0, 2],
     }
-
     function menuHooks(id) {
         return {
             onShow() {
@@ -1728,40 +1683,40 @@ if (typeof tippy !== 'undefined') {
         ...menuOptions,
         ...menuHooks('menu-file'),
         content: `
-<div class="dropdown-content">
-    <button onclick="safeReset()">
-        <i data-lucide="file-plus" class="menu-icon"></i> New
-    </button>
-    <button onclick="importKMAKE()">
-        <i data-lucide="folder-open" class="menu-icon"></i> Open…
-    </button>
-    <button onclick="exportKMAKE()">
-        <i data-lucide="save" class="menu-icon"></i> Save as .kmake
-    </button>
-    <div class="dropdown-separator"></div>
-    <span class="dropdown-section">Import</span>
-    <button onclick="importJSON()">
-        <i data-lucide="file-code" class="menu-icon"></i> Import JSON
-    </button>
-    <button onclick="importLRC()">
-        <i data-lucide="file-audio" class="menu-icon"></i> Import LRC / eLRC
-    </button>
-    <div class="dropdown-separator"></div>
-    <span class="dropdown-section">Export</span>
-    <button onclick="exportNewKpoeJSON()">
-        <i data-lucide="braces" class="menu-icon"></i> Export JSON (v2)
-        <span class="menu-shortcut">Ctrl+E</span>
-    </button>
-    <button onclick="exportLegacyJSON()">
-        <i data-lucide="gamepad-2" class="menu-icon"></i> Export JDNow Lyrics
-    </button>
-    <button onclick="exportLRC()">
-        <i data-lucide="subtitles" class="menu-icon"></i> Export LRC
-    </button>
-    <button onclick="exportELRC()">
-        <i data-lucide="subtitles" class="menu-icon"></i> Export Enhanced LRC
-    </button>
-</div>`,
+        <div class="dropdown-content">
+            <button onclick="safeReset()">
+                <i data-lucide="file-plus" class="menu-icon"></i> New
+            </button>
+            <button onclick="importKMAKE()">
+                <i data-lucide="folder-open" class="menu-icon"></i> Open…
+            </button>
+            <button onclick="exportKMAKE()">
+                <i data-lucide="save" class="menu-icon"></i> Save as .kmake
+            </button>
+            <div class="dropdown-separator"></div>
+            <span class="dropdown-section">Import</span>
+            <button onclick="importJSON()">
+                <i data-lucide="file-code" class="menu-icon"></i> Import JSON
+            </button>
+            <button onclick="importLRC()">
+                <i data-lucide="file-audio" class="menu-icon"></i> Import LRC / eLRC
+            </button>
+            <div class="dropdown-separator"></div>
+            <span class="dropdown-section">Export</span>
+            <button onclick="exportNewKpoeJSON()">
+                <i data-lucide="braces" class="menu-icon"></i> Export JSON (v2)
+                <span class="menu-shortcut">Ctrl+E</span>
+            </button>
+            <button onclick="exportLegacyJSON()">
+                <i data-lucide="gamepad-2" class="menu-icon"></i> Export JDNow Lyrics
+            </button>
+            <button onclick="exportLRC()">
+                <i data-lucide="subtitles" class="menu-icon"></i> Export LRC
+            </button>
+            <button onclick="exportELRC()">
+                <i data-lucide="subtitles" class="menu-icon"></i> Export Enhanced LRC
+            </button>
+        </div>`,
         onMount(instance) {
             lucide.createIcons({
                 nodes: [instance.popper]
@@ -1773,36 +1728,36 @@ if (typeof tippy !== 'undefined') {
         ...menuOptions,
         ...menuHooks('menu-song'),
         content: `
-<div class="dropdown-content">
-    <button onclick="openAgentManager()">
-        <i data-lucide="users" class="menu-icon"></i> Agents…
-    </button>
-    <button onclick="openMetadataEditor()">
-        <i data-lucide="music" class="menu-icon"></i> Metadata…
-    </button>
-    <div class="dropdown-separator"></div>
-    <button onclick="importSong()">
-        <i data-lucide="upload" class="menu-icon"></i> Load Audio File…
-    </button>
-    <button onclick="importYoutube()">
-        <i data-lucide="youtube" class="menu-icon"></i> Load from YouTube…
-    </button>
-    <div class="dropdown-separator"></div>
-    <span class="dropdown-section">Tools</span>
-    <button onclick="openBatchTimeShift()">
-        <i data-lucide="clock" class="menu-icon"></i> Batch Time Shift...
-    </button>
-    <button onclick="openFindReplace()">
-        <i data-lucide="search" class="menu-icon"></i> Find & Replace...
-    </button>
-    <button onclick="syncSimilarLinesTiming()">
-        <i data-lucide="copy" class="menu-icon"></i> Sync Similar Lines
-    </button>
-    <div class="dropdown-separator"></div>
-    <button onclick="safeReset()">
-        <i data-lucide="rotate-ccw" class="menu-icon"></i> Reset All
-    </button>
-</div>`,
+        <div class="dropdown-content">
+            <button onclick="openAgentManager()">
+                <i data-lucide="users" class="menu-icon"></i> Agents…
+            </button>
+            <button onclick="openMetadataEditor()">
+                <i data-lucide="music" class="menu-icon"></i> Metadata…
+            </button>
+            <div class="dropdown-separator"></div>
+            <button onclick="importSong()">
+                <i data-lucide="upload" class="menu-icon"></i> Load Audio File…
+            </button>
+            <button onclick="importYoutube()">
+                <i data-lucide="youtube" class="menu-icon"></i> Load from YouTube…
+            </button>
+            <div class="dropdown-separator"></div>
+            <span class="dropdown-section">Tools</span>
+            <button onclick="openBatchTimeShift()">
+                <i data-lucide="clock" class="menu-icon"></i> Batch Time Shift...
+            </button>
+            <button onclick="openFindReplace()">
+                <i data-lucide="search" class="menu-icon"></i> Find & Replace...
+            </button>
+            <button onclick="syncSimilarLinesTiming()">
+                <i data-lucide="copy" class="menu-icon"></i> Sync Similar Lines
+            </button>
+            <div class="dropdown-separator"></div>
+            <button onclick="safeReset()">
+                <i data-lucide="rotate-ccw" class="menu-icon"></i> Reset All
+            </button>
+        </div>`,
         onMount(instance) {
             lucide.createIcons({
                 nodes: [instance.popper]
@@ -1813,21 +1768,21 @@ if (typeof tippy !== 'undefined') {
     tippy('#menu-view', {
         ...menuOptions,
         content: `
-<div class="dropdown-content">
-    <label class="dropdown-toggle" onclick="previewToggle(); document.getElementById('preview-checkbox').checked = document.getElementById('lyrics-content').classList.contains('preview')">
-        <input type="checkbox" id="preview-checkbox" onclick="event.stopPropagation(); previewToggle()" />
-        Preview mode
-    </label>
-    <div class="dropdown-select-row">
-        <span>Theme</span>
-        <select id="preview-theme" onchange="document.getElementById('lyrics-content').setAttribute('data-theme', this.value)">
-            <option value="default">Default</option>
-            <option value="jd2014">jd2014</option>
-            <option value="spotify">Spotify</option>
-            <option value="karafun">Karafun</option>
-        </select>
-    </div>
-</div>`,
+        <div class="dropdown-content">
+            <label class="dropdown-toggle" onclick="previewToggle(); document.getElementById('preview-checkbox').checked = document.getElementById('lyrics-content').classList.contains('preview')">
+                <input type="checkbox" id="preview-checkbox" onclick="event.stopPropagation(); previewToggle()" />
+                Preview mode
+            </label>
+            <div class="dropdown-select-row">
+                <span>Theme</span>
+                <select id="preview-theme" onchange="document.getElementById('lyrics-content').setAttribute('data-theme', this.value)">
+                    <option value="default">Default</option>
+                    <option value="jd2014">jd2014</option>
+                    <option value="spotify">Spotify</option>
+                    <option value="karafun">Karafun</option>
+                </select>
+            </div>
+        </div>`,
         onShow(instance) {
             document.getElementById('menu-view')?.setAttribute('data-active', 'true')
             requestAnimationFrame(() => {
@@ -1844,18 +1799,18 @@ if (typeof tippy !== 'undefined') {
         ...menuOptions,
         ...menuHooks('menu-help'),
         content: `
-<div class="dropdown-content">
-    <button onclick="openTutorial()">
-        <i data-lucide="book-open" class="menu-icon"></i> Tutorial &amp; Shortcuts
-    </button>
-    <div class="dropdown-separator"></div>
-    <button onclick="openAboutModal()">
-        <i data-lucide="info" class="menu-icon"></i> About Kmake
-    </button>
-    <button onclick="window.open('https://github.com/ibratabian17/kmake')">
-        <i data-lucide="github" class="menu-icon"></i> GitHub Repository
-    </button>
-</div>`,
+        <div class="dropdown-content">
+            <button onclick="openTutorial()">
+                <i data-lucide="book-open" class="menu-icon"></i> Tutorial &amp; Shortcuts
+            </button>
+            <div class="dropdown-separator"></div>
+            <button onclick="openAboutModal()">
+                <i data-lucide="info" class="menu-icon"></i> About Kmake
+            </button>
+            <button onclick="window.open('https://github.com/ibratabian17/kmake')">
+                <i data-lucide="github" class="menu-icon"></i> GitHub Repository
+            </button>
+        </div>`,
         onMount(instance) {
             lucide.createIcons({
                 nodes: [instance.popper]
@@ -1873,7 +1828,6 @@ function msToDisplayTime(ms) {
     const mill = totalMs % 1000
     return `${min}:${String(sec).padStart(2, '0')}.${String(mill).padStart(3, '0')}`
 }
-
 function updateTimeDisplays() {
     const startVal = parseInt(document.getElementById('properties-start')?.value) || 0
     const lengthVal = parseInt(document.getElementById('properties-length')?.value) || 0
@@ -1882,7 +1836,6 @@ function updateTimeDisplays() {
     if (sd) sd.textContent = msToDisplayTime(startVal)
     if (ld) ld.textContent = msToDisplayTime(lengthVal)
 }
-
 function nudgeProperty(field, delta) {
     if (selectedWordIndex === -1 || selectedWordIndex >= allSyllables.length) return
     const {
@@ -1910,7 +1863,6 @@ function nudgeProperty(field, delta) {
     updateTimeDisplays()
     _scheduleSessionSave()
 }
-
 function syncWordToCursor(field) {
     if (selectedWordIndex === -1 || selectedWordIndex >= allSyllables.length) return
     const {
@@ -1933,7 +1885,6 @@ function syncWordToCursor(field) {
     _scheduleSessionSave()
     showToast(`Synced to ${msToDisplayTime(timeMs)}`)
 }
-
 function changeSelectedLineAgent(newAlias) {
     if (selectedWordIndex === -1 || selectedWordIndex >= allSyllables.length) return
     const {
@@ -2066,7 +2017,6 @@ const undoStack = []
 const redoStack = []
 const MAX_UNDO = 100
 let _pendingFieldSnapshot = null
-
 function _captureState() {
     return {
         wordIndex: currentWordIndex,
@@ -2083,27 +2033,23 @@ function _captureState() {
         })
     }
 }
-
 function pushUndo(snapshot) {
     undoStack.push(snapshot || _captureState())
     if (undoStack.length > MAX_UNDO) undoStack.shift()
     redoStack.length = 0
 }
-
 function undoAction() {
     if (!undoStack.length) return
     redoStack.push(_captureState())
     _applySnapshot(undoStack.pop())
     showToast('Undo')
 }
-
 function redoAction() {
     if (!redoStack.length) return
     undoStack.push(_captureState())
     _applySnapshot(redoStack.pop())
     showToast('Redo')
 }
-
 function _applySnapshot(snap) {
     const snapCount = snap.syls.filter(Boolean).length
     const textChanged = elem_lyricsInput.value !== snap.text
@@ -2151,7 +2097,6 @@ function _applySnapshot(snap) {
     _refreshSelectionPanel()
     _scheduleSessionSave()
 }
-
 function _refreshSelectionPanel() {
     if (selectedWordIndex < 0 || selectedWordIndex >= allSyllables.length) return
     const {
@@ -2193,12 +2138,10 @@ function _commitTypedEdit() {
 // ============================================================
 const SESSION_KEY = 'kmake-autosave-v1'
 let _sessionSaveTimer = null
-
 function _scheduleSessionSave() {
     if (_sessionSaveTimer) clearTimeout(_sessionSaveTimer)
     _sessionSaveTimer = setTimeout(_saveSessionNow, 800)
 }
-
 function _serializeLyrics() {
     return tempLyrics.map(line => ({
         time: line.time || 0,
@@ -2220,7 +2163,6 @@ function _serializeLyrics() {
         }))
     }))
 }
-
 function _saveSessionNow() {
     if (_sessionSaveTimer) {
         clearTimeout(_sessionSaveTimer);
@@ -2249,7 +2191,6 @@ function _saveSessionNow() {
         console.warn('Autosave failed:', e)
     }
 }
-
 function _timeAgo(ts) {
     const s = Math.floor((Date.now() - ts) / 1000)
     if (s < 60) return 'just now'
@@ -2260,7 +2201,6 @@ function _timeAgo(ts) {
     const d = Math.floor(h / 24)
     return d + ' day' + (d > 1 ? 's' : '') + ' ago'
 }
-
 function _checkSessionRestore() {
     let data = null
     try {
@@ -2280,38 +2220,38 @@ function _checkSessionRestore() {
     modal.id = 'restore-modal'
     modal.className = 'kmake-modal'
     modal.innerHTML = `
-<div class="kmake-modal-backdrop" onclick="closeRestoreModal()"></div>
-<div class="kmake-modal-content" style="max-width:430px">
-    <div class="kmake-modal-header">
-        <i data-lucide="history" class="modal-header-icon"></i>
-        <h2>Restore previous session?</h2>
-        <button onclick="closeRestoreModal()" class="modal-close-btn"><i data-lucide="x"></i></button>
-    </div>
-    <div class="kmake-modal-body">
-        <div style="display:flex;flex-direction:column;gap:12px">
-            <p style="font-size:0.85rem;color:var(--md-sys-color-on-surface-variant);line-height:1.55">
-                Found an autosaved session from <b style="color:var(--md-sys-color-on-surface)">${when}</b>${data.filename ? ' for <b style="color:var(--md-sys-color-on-surface)">' + escapeHtmlAttr(data.filename) + '</b>' : ''}.
-            </p>
-            <div style="display:flex;gap:8px">
-                <div style="flex:1;background:var(--md-sys-color-surface-container);border:1px solid var(--md-sys-color-outline-variant);border-radius:10px;padding:10px 12px;text-align:center">
-                    <div style="font-size:1.2rem;font-weight:700;color:var(--md-sys-color-primary)">${lyricLines.length}</div>
-                    <div style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--md-sys-color-on-surface-variant)">Lines</div>
-                </div>
-                <div style="flex:1;background:var(--md-sys-color-surface-container);border:1px solid var(--md-sys-color-outline-variant);border-radius:10px;padding:10px 12px;text-align:center">
-                    <div style="font-size:1.2rem;font-weight:700;color:var(--md-sys-color-primary)">${doneSyls.length}<span style="font-size:0.8rem;opacity:0.55">/${allSyls.length}</span></div>
-                    <div style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--md-sys-color-on-surface-variant)">Words timed</div>
-                </div>
-            </div>
-            <p style="font-size:0.74rem;color:var(--md-sys-color-on-surface-variant);opacity:0.8;line-height:1.5">
-                ⓘ Audio files can't be stored in the browser — after restoring, reload the song via <b>Song → Load Audio File</b> to continue syncing.
-            </p>
+    <div class="kmake-modal-backdrop" onclick="closeRestoreModal()"></div>
+    <div class="kmake-modal-content" style="max-width:430px">
+        <div class="kmake-modal-header">
+            <i data-lucide="history" class="modal-header-icon"></i>
+            <h2>Restore previous session?</h2>
+            <button onclick="closeRestoreModal()" class="modal-close-btn"><i data-lucide="x"></i></button>
         </div>
-    </div>
-    <div class="kmake-modal-footer">
-        <button onclick="discardSession()" class="btn-secondary">Discard</button>
-        <button onclick="restoreSession()" class="btn-primary">Restore session</button>
-    </div>
-</div>`
+        <div class="kmake-modal-body">
+            <div style="display:flex;flex-direction:column;gap:12px">
+                <p style="font-size:0.85rem;color:var(--md-sys-color-on-surface-variant);line-height:1.55">
+                    Found an autosaved session from <b style="color:var(--md-sys-color-on-surface)">${when}</b>${data.filename ? ' for <b style="color:var(--md-sys-color-on-surface)">' + escapeHtmlAttr(data.filename) + '</b>' : ''}.
+                </p>
+                <div style="display:flex;gap:8px">
+                    <div style="flex:1;background:var(--md-sys-color-surface-container);border:1px solid var(--md-sys-color-outline-variant);border-radius:10px;padding:10px 12px;text-align:center">
+                        <div style="font-size:1.2rem;font-weight:700;color:var(--md-sys-color-primary)">${lyricLines.length}</div>
+                        <div style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--md-sys-color-on-surface-variant)">Lines</div>
+                    </div>
+                    <div style="flex:1;background:var(--md-sys-color-surface-container);border:1px solid var(--md-sys-color-outline-variant);border-radius:10px;padding:10px 12px;text-align:center">
+                        <div style="font-size:1.2rem;font-weight:700;color:var(--md-sys-color-primary)">${doneSyls.length}<span style="font-size:0.8rem;opacity:0.55">/${allSyls.length}</span></div>
+                        <div style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--md-sys-color-on-surface-variant)">Words timed</div>
+                    </div>
+                </div>
+                <p style="font-size:0.74rem;color:var(--md-sys-color-on-surface-variant);opacity:0.8;line-height:1.5">
+                    ⓘ Audio files can't be stored in the browser — after restoring, reload the song via <b>Song → Load Audio File</b> to continue syncing.
+                </p>
+            </div>
+        </div>
+        <div class="kmake-modal-footer">
+            <button onclick="discardSession()" class="btn-secondary">Discard</button>
+            <button onclick="restoreSession()" class="btn-primary">Restore session</button>
+        </div>
+    </div>`
     document.body.appendChild(modal)
     window._pendingSessionData = data
     requestAnimationFrame(() => {
@@ -2319,7 +2259,6 @@ function _checkSessionRestore() {
         if (typeof lucide !== 'undefined') lucide.createIcons()
     })
 }
-
 function closeRestoreModal() {
     const m = document.getElementById('restore-modal')
     if (m) {
@@ -2327,14 +2266,12 @@ function closeRestoreModal() {
         setTimeout(() => m.remove(), 200)
     }
 }
-
 function discardSession() {
     localStorage.removeItem(SESSION_KEY)
     window._pendingSessionData = null
     closeRestoreModal()
     showToast('Session discarded')
 }
-
 function restoreSession() {
     const data = window._pendingSessionData
     window._pendingSessionData = null
@@ -2400,7 +2337,6 @@ function safeReset() {
     }
     openResetConfirm()
 }
-
 function openResetConfirm() {
     const existing = document.getElementById('reset-confirm-modal')
     if (existing) existing.remove()
@@ -2408,31 +2344,30 @@ function openResetConfirm() {
     modal.id = 'reset-confirm-modal'
     modal.className = 'kmake-modal'
     modal.innerHTML = `
-<div class="kmake-modal-backdrop" onclick="closeResetConfirm()"></div>
-<div class="kmake-modal-content" style="max-width:390px">
-    <div class="kmake-modal-header">
-        <i data-lucide="alert-triangle" class="modal-header-icon" style="color:var(--md-sys-color-error)"></i>
-        <h2>Reset everything?</h2>
-        <button onclick="closeResetConfirm()" class="modal-close-btn"><i data-lucide="x"></i></button>
-    </div>
-    <div class="kmake-modal-body">
-        <p style="font-size:0.85rem;color:var(--md-sys-color-on-surface-variant);line-height:1.6">
-            This clears the lyrics, all timing, agents and metadata${localStorage.getItem(SESSION_KEY) ? ', and deletes the autosaved session' : ''}.
-            This can't be undone.
-        </p>
-    </div>
-    <div class="kmake-modal-footer">
-        <button onclick="closeResetConfirm()" class="btn-secondary">Cancel</button>
-        <button onclick="executeReset()" class="btn-primary" style="background:var(--md-sys-color-error-container);color:var(--md-sys-color-on-error-container)">Reset</button>
-    </div>
-</div>`
+    <div class="kmake-modal-backdrop" onclick="closeResetConfirm()"></div>
+    <div class="kmake-modal-content" style="max-width:390px">
+        <div class="kmake-modal-header">
+            <i data-lucide="alert-triangle" class="modal-header-icon" style="color:var(--md-sys-color-error)"></i>
+            <h2>Reset everything?</h2>
+            <button onclick="closeResetConfirm()" class="modal-close-btn"><i data-lucide="x"></i></button>
+        </div>
+        <div class="kmake-modal-body">
+            <p style="font-size:0.85rem;color:var(--md-sys-color-on-surface-variant);line-height:1.6">
+                This clears the lyrics, all timing, agents and metadata${localStorage.getItem(SESSION_KEY) ? ', and deletes the autosaved session' : ''}.
+                This can't be undone.
+            </p>
+        </div>
+        <div class="kmake-modal-footer">
+            <button onclick="closeResetConfirm()" class="btn-secondary">Cancel</button>
+            <button onclick="executeReset()" class="btn-primary" style="background:var(--md-sys-color-error-container);color:var(--md-sys-color-on-error-container)">Reset</button>
+        </div>
+    </div>`
     document.body.appendChild(modal)
     requestAnimationFrame(() => {
         modal.classList.add('visible');
         if (typeof lucide !== 'undefined') lucide.createIcons()
     })
 }
-
 function closeResetConfirm() {
     const m = document.getElementById('reset-confirm-modal')
     if (m) {
@@ -2440,7 +2375,6 @@ function closeResetConfirm() {
         setTimeout(() => m.remove(), 200)
     }
 }
-
 function executeReset() {
     closeResetConfirm()
     reset()
@@ -2458,24 +2392,24 @@ function openAgentManager() {
     modal.id = 'agent-manager-modal'
     modal.className = 'kmake-modal'
     modal.innerHTML = `
-<div class="kmake-modal-backdrop" onclick="closeAgentManager()"></div>
-<div class="kmake-modal-content" style="min-width:560px;max-width:700px">
-    <div class="kmake-modal-header">
-        <i data-lucide="users" class="modal-header-icon"></i>
-        <h2>Agent Manager</h2>
-        <button onclick="closeAgentManager()" class="modal-close-btn" title="Close"><i data-lucide="x"></i></button>
+    <div class="kmake-modal-backdrop" onclick="closeAgentManager()"></div>
+    <div class="kmake-modal-content" style="min-width:560px;max-width:700px">
+        <div class="kmake-modal-header">
+            <i data-lucide="users" class="modal-header-icon"></i>
+            <h2>Agent Manager</h2>
+            <button onclick="closeAgentManager()" class="modal-close-btn" title="Close"><i data-lucide="x"></i></button>
+        </div>
+        <div class="kmake-modal-body">
+            <p class="modal-hint">Agents are singers or performers. Each gets a short <b>alias</b> (like <code>v1</code>) used in lyrics lines.</p>
+            <div id="agent-list" class="agent-list"></div>
+            <button onclick="addAgentRow()" class="btn-add-agent"><i data-lucide="plus"></i> Add Agent</button>
+        </div>
+        <div class="kmake-modal-footer">
+            <button onclick="saveAgents()" class="btn-primary">Save & Apply</button>
+            <button onclick="closeAgentManager()" class="btn-secondary">Cancel</button>
+        </div>
     </div>
-    <div class="kmake-modal-body">
-        <p class="modal-hint">Agents are singers or performers. Each gets a short <b>alias</b> (like <code>v1</code>) used in lyrics lines.</p>
-        <div id="agent-list" class="agent-list"></div>
-        <button onclick="addAgentRow()" class="btn-add-agent"><i data-lucide="plus"></i> Add Agent</button>
-    </div>
-    <div class="kmake-modal-footer">
-        <button onclick="saveAgents()" class="btn-primary">Save & Apply</button>
-        <button onclick="closeAgentManager()" class="btn-secondary">Cancel</button>
-    </div>
-</div>
-`
+    `
     document.body.appendChild(modal)
     renderAgentList()
     requestAnimationFrame(() => {
@@ -2483,7 +2417,6 @@ function openAgentManager() {
         lucide.createIcons()
     })
 }
-
 function renderAgentList() {
     const list = document.getElementById('agent-list')
     if (!list) return
@@ -2492,38 +2425,36 @@ function renderAgentList() {
         appendAgentRow(list, alias, agent.name || '', agent.type || 'person')
     })
 }
-
 function appendAgentRow(list, alias, name, type) {
     const row = document.createElement('div')
     row.className = 'agent-row'
     row.innerHTML = `
-<div class="agent-row-fields">
-    <div class="agent-field agent-field-alias">
-        <label>Alias <span class="field-hint">(used in lyrics)</span></label>
-        <input type="text" class="agent-alias-input" value="${alias}" placeholder="v1" spellcheck="false" />
+    <div class="agent-row-fields">
+        <div class="agent-field agent-field-alias">
+            <label>Alias <span class="field-hint">(used in lyrics)</span></label>
+            <input type="text" class="agent-alias-input" value="${alias}" placeholder="v1" spellcheck="false" />
+        </div>
+        <div class="agent-field agent-field-name">
+            <label>Display Name <span class="field-hint">(optional)</span></label>
+            <input type="text" class="agent-name-input" value="${name}" placeholder="Artist Name" />
+        </div>
+        <div class="agent-field agent-field-type">
+            <label>Type</label>
+            <select class="agent-type-input">
+                <option value="person" ${type === 'person' ? 'selected' : ''}>Person</option>
+                <option value="group" ${type === 'group' ? 'selected' : ''}>Group</option>
+                <option value="virtual" ${type === 'virtual' ? 'selected' : ''}>Virtual</option>
+                <option value="other" ${type === 'other' ? 'selected' : ''}>Other</option>
+            </select>
+        </div>
     </div>
-    <div class="agent-field agent-field-name">
-        <label>Display Name <span class="field-hint">(optional)</span></label>
-        <input type="text" class="agent-name-input" value="${name}" placeholder="Artist Name" />
-    </div>
-    <div class="agent-field agent-field-type">
-        <label>Type</label>
-        <select class="agent-type-input">
-            <option value="person" ${type === 'person' ? 'selected' : ''}>Person</option>
-            <option value="group" ${type === 'group' ? 'selected' : ''}>Group</option>
-            <option value="virtual" ${type === 'virtual' ? 'selected' : ''}>Virtual</option>
-            <option value="other" ${type === 'other' ? 'selected' : ''}>Other</option>
-        </select>
-    </div>
-</div>
-<button class="btn-remove-agent" title="Remove agent" onclick="this.closest('.agent-row').remove()"><i data-lucide="trash-2"></i></button>
-`
+    <button class="btn-remove-agent" title="Remove agent" onclick="this.closest('.agent-row').remove()"><i data-lucide="trash-2"></i></button>
+    `
     list.appendChild(row)
     if (typeof lucide !== 'undefined') lucide.createIcons({
         nodes: [row]
     })
 }
-
 function addAgentRow() {
     const list = document.getElementById('agent-list')
     if (!list) return
@@ -2533,7 +2464,6 @@ function addAgentRow() {
     appendAgentRow(list, 'v' + n, '', 'person')
     list.lastElementChild?.querySelector('.agent-alias-input')?.focus()
 }
-
 function saveAgents() {
     const rows = document.querySelectorAll('#agent-list .agent-row')
     const newAgents = {}
@@ -2571,7 +2501,6 @@ function saveAgents() {
         showToast('Agents saved')
     }
 }
-
 function updateAgentDeclarationsInText() {
     const currentText = elem_lyricsInput.value
     const lines = currentText.split('\n')
@@ -2581,7 +2510,6 @@ function updateAgentDeclarationsInText() {
     while (contentStart < nonAgentLines.length && nonAgentLines[contentStart].trim() === '') contentStart++
     elem_lyricsInput.value = [...agentDecls, '', ...nonAgentLines.slice(contentStart)].join('\n')
 }
-
 function closeAgentManager() {
     const modal = document.getElementById('agent-manager-modal')
     if (!modal) return
@@ -2598,36 +2526,35 @@ function openAboutModal() {
     modal.id = 'about-modal'
     modal.className = 'kmake-modal'
     modal.innerHTML = `
-<div class="kmake-modal-backdrop" onclick="closeAboutModal()"></div>
-<div class="kmake-modal-content" style="max-width:360px">
-    <div class="kmake-modal-header">
-        <i data-lucide="info" class="modal-header-icon"></i>
-        <h2>About Kmake</h2>
-        <button onclick="closeAboutModal()" class="modal-close-btn"><i data-lucide="x"></i></button>
-    </div>
-    <div class="kmake-modal-body" style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:24px;text-align:center">
-        <img src="assets/kmake-logo.png" style="height:32px;opacity:0.9" />
-        <div style="display:flex;flex-direction:column;gap:3px">
-            <p style="font-size:0.92rem;font-weight:600;color:var(--md-sys-color-on-surface)">Kmake — JSON Lyrics Generator</p>
-            <p style="font-size:0.76rem;color:var(--md-sys-color-on-surface-variant)">${AppVersion.customName} &nbsp;·&nbsp; v${AppVersion.version}</p>
+    <div class="kmake-modal-backdrop" onclick="closeAboutModal()"></div>
+    <div class="kmake-modal-content" style="max-width:360px">
+        <div class="kmake-modal-header">
+            <i data-lucide="info" class="modal-header-icon"></i>
+            <h2>About Kmake</h2>
+            <button onclick="closeAboutModal()" class="modal-close-btn"><i data-lucide="x"></i></button>
         </div>
-        <div style="width:100%;height:1px;background:var(--md-sys-color-outline-variant)"></div>
-        <div style="display:flex;flex-direction:column;gap:4px">
-            <p style="font-size:0.8rem;color:var(--md-sys-color-on-surface-variant)">Originally by <b style="color:var(--md-sys-color-on-surface)">ecnivtwelve</b></p>
-            <p style="font-size:0.76rem;color:var(--md-sys-color-on-surface-variant);opacity:0.6">Fork maintained by Ibratabian17</p>
+        <div class="kmake-modal-body" style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:24px;text-align:center">
+            <img src="assets/kmake-logo.png" style="height:32px;opacity:0.9" />
+            <div style="display:flex;flex-direction:column;gap:3px">
+                <p style="font-size:0.92rem;font-weight:600;color:var(--md-sys-color-on-surface)">Kmake — JSON Lyrics Generator</p>
+                <p style="font-size:0.76rem;color:var(--md-sys-color-on-surface-variant)">${AppVersion.customName} &nbsp;·&nbsp; v${AppVersion.version}</p>
+            </div>
+            <div style="width:100%;height:1px;background:var(--md-sys-color-outline-variant)"></div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+                <p style="font-size:0.8rem;color:var(--md-sys-color-on-surface-variant)">Originally by <b style="color:var(--md-sys-color-on-surface)">ecnivtwelve</b></p>
+                <p style="font-size:0.76rem;color:var(--md-sys-color-on-surface-variant);opacity:0.6">Fork maintained by Ibratabian17</p>
+            </div>
+            <button onclick="window.open('https://github.com/ecnivtwelve/kmake')" class="btn-secondary" style="display:flex;align-items:center;gap:6px">
+                <i data-lucide="github" style="width:13px;height:13px"></i> View on GitHub
+            </button>
         </div>
-        <button onclick="window.open('https://github.com/ecnivtwelve/kmake')" class="btn-secondary" style="display:flex;align-items:center;gap:6px">
-            <i data-lucide="github" style="width:13px;height:13px"></i> View on GitHub
-        </button>
-    </div>
-</div>`
+    </div>`
     document.body.appendChild(modal)
     requestAnimationFrame(() => {
         modal.classList.add('visible');
         lucide.createIcons()
     })
 }
-
 function closeAboutModal() {
     const modal = document.getElementById('about-modal')
     if (!modal) return
@@ -2690,11 +2617,11 @@ async function _runExport(exportFn) {
             const lang = await detectLanguage()
             if (lang) metadata.language = lang
         } catch {
-            /* best-effort */ }
+            /* best-effort */
+        }
     }
     exportFn()
 }
-
 function openMetadataEditor(exportCallback = null) {
     metadataEverOpened = true
     _pendingExportFn = exportCallback
@@ -2704,68 +2631,67 @@ function openMetadataEditor(exportCallback = null) {
     modal.id = 'metadata-modal'
     modal.className = 'kmake-modal'
     modal.innerHTML = `
-<div class="kmake-modal-backdrop" onclick="closeMetadataEditor()"></div>
-<div class="kmake-modal-content" style="max-width:500px">
-    <div class="kmake-modal-header">
-        <i data-lucide="music" class="modal-header-icon"></i>
-        <h2>Song Metadata</h2>
-        <button onclick="closeMetadataEditor()" class="modal-close-btn"><i data-lucide="x"></i></button>
-    </div>
-    <div class="kmake-modal-body">
-        <div class="meta-group-label">Song Info</div>
-        <div class="meta-field">
-            <label>Title</label>
-            <input type="text" id="meta-title" value="${escapeHtmlAttr(metadata.title)}" placeholder="Song title" />
+    <div class="kmake-modal-backdrop" onclick="closeMetadataEditor()"></div>
+    <div class="kmake-modal-content" style="max-width:500px">
+        <div class="kmake-modal-header">
+            <i data-lucide="music" class="modal-header-icon"></i>
+            <h2>Song Metadata</h2>
+            <button onclick="closeMetadataEditor()" class="modal-close-btn"><i data-lucide="x"></i></button>
         </div>
-        <div class="meta-row">
+        <div class="kmake-modal-body">
+            <div class="meta-group-label">Song Info</div>
             <div class="meta-field">
-                <label>Artist</label>
-                <input type="text" id="meta-artist" value="${escapeHtmlAttr(metadata.artist || '')}" placeholder="Main artist" />
+                <label>Title</label>
+                <input type="text" id="meta-title" value="${escapeHtmlAttr(metadata.title)}" placeholder="Song title" />
             </div>
-            <div class="meta-field">
-                <label>Album</label>
-                <input type="text" id="meta-album" value="${escapeHtmlAttr(metadata.album || '')}" placeholder="Album name" />
-            </div>
-        </div>
-        <div class="meta-field">
-            <label>Songwriters <span class="meta-field-hint">comma-separated</span></label>
-            <input type="text" id="meta-writers" value="${escapeHtmlAttr((metadata.songWriters || []).join(', '))}" placeholder="Writer 1, Writer 2" />
-        </div>
-        <div class="meta-divider"></div>
-        <div class="meta-group-label">Optional</div>
-        <div class="meta-row">
-            <div class="meta-field">
-                <label>Language</label>
-                <div style="display:flex;gap:6px;align-items:center">
-                    <input type="text" id="meta-language" value="${escapeHtmlAttr(metadata.language || '')}" placeholder="en, ja, ko…" style="flex:1;min-width:0" />
-                    <button id="btn-detect-lang" onclick="detectAndFillLanguage()" class="btn-secondary" title="Auto-detect from lyrics text" style="white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:4px">
-                        <i data-lucide="scan-text" style="width:13px;height:13px"></i> Detect
-                    </button>
+            <div class="meta-row">
+                <div class="meta-field">
+                    <label>Artist</label>
+                    <input type="text" id="meta-artist" value="${escapeHtmlAttr(metadata.artist || '')}" placeholder="Main artist" />
+                </div>
+                <div class="meta-field">
+                    <label>Album</label>
+                    <input type="text" id="meta-album" value="${escapeHtmlAttr(metadata.album || '')}" placeholder="Album name" />
                 </div>
             </div>
             <div class="meta-field">
-                <label>ISRC</label>
-                <input type="text" id="meta-isrc" value="${escapeHtmlAttr(metadata.isrc || '')}" placeholder="ISRC code" />
+                <label>Songwriters <span class="meta-field-hint">comma-separated</span></label>
+                <input type="text" id="meta-writers" value="${escapeHtmlAttr((metadata.songWriters || []).join(', '))}" placeholder="Writer 1, Writer 2" />
+            </div>
+            <div class="meta-divider"></div>
+            <div class="meta-group-label">Optional</div>
+            <div class="meta-row">
+                <div class="meta-field">
+                    <label>Language</label>
+                    <div style="display:flex;gap:6px;align-items:center">
+                        <input type="text" id="meta-language" value="${escapeHtmlAttr(metadata.language || '')}" placeholder="en, ja, ko…" style="flex:1;min-width:0" />
+                        <button id="btn-detect-lang" onclick="detectAndFillLanguage()" class="btn-secondary" title="Auto-detect from lyrics text" style="white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:4px">
+                            <i data-lucide="scan-text" style="width:13px;height:13px"></i> Detect
+                        </button>
+                    </div>
+                </div>
+                <div class="meta-field">
+                    <label>ISRC</label>
+                    <input type="text" id="meta-isrc" value="${escapeHtmlAttr(metadata.isrc || '')}" placeholder="ISRC code" />
+                </div>
+            </div>
+            <div class="meta-field">
+                <label>Curator</label>
+                <input type="text" id="meta-curator" value="${escapeHtmlAttr(metadata.curator || 'Kmake')}" placeholder="Kmake" />
             </div>
         </div>
-        <div class="meta-field">
-            <label>Curator</label>
-            <input type="text" id="meta-curator" value="${escapeHtmlAttr(metadata.curator || 'Kmake')}" placeholder="Kmake" />
+        <div class="kmake-modal-footer">
+            <button onclick="saveMetadata()" class="btn-primary">${exportCallback ? 'Save & Export' : 'Save'}</button>
+            <button onclick="closeMetadataEditor()" class="btn-secondary">Cancel</button>
         </div>
     </div>
-    <div class="kmake-modal-footer">
-        <button onclick="saveMetadata()" class="btn-primary">${exportCallback ? 'Save & Export' : 'Save'}</button>
-        <button onclick="closeMetadataEditor()" class="btn-secondary">Cancel</button>
-    </div>
-</div>
-`
+    `
     document.body.appendChild(modal)
     requestAnimationFrame(() => {
         modal.classList.add('visible');
         lucide.createIcons()
     })
 }
-
 function saveMetadata() {
     metadata.title = document.getElementById('meta-title').value.trim()
     metadata.artist = document.getElementById('meta-artist').value.trim()
@@ -2785,14 +2711,12 @@ function saveMetadata() {
         showToast('Metadata saved')
     }
 }
-
 function closeMetadataEditor() {
     const modal = document.getElementById('metadata-modal')
     if (!modal) return
     modal.classList.remove('visible')
     setTimeout(() => modal.remove(), 200)
 }
-
 function escapeHtmlAttr(str) {
     return (str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
@@ -2806,98 +2730,98 @@ function openTutorial() {
     modal.id = 'tutorial-modal'
     modal.className = 'kmake-modal'
     modal.innerHTML = `
-<div class="kmake-modal-backdrop" onclick="closeTutorial()"></div>
-<div class="kmake-modal-content tutorial-content">
-    <div class="kmake-modal-header">
-        <i data-lucide="book-open" class="modal-header-icon"></i>
-        <h2>How to use Kmake</h2>
-        <button onclick="closeTutorial()" class="modal-close-btn"><i data-lucide="x"></i></button>
-    </div>
-    <div class="kmake-modal-body tutorial-body">
-        <div class="tutorial-tabs">
-            <button class="tutorial-tab active" onclick="switchTutorialTab(this, 'tab-workflow')">Workflow</button>
-            <button class="tutorial-tab" onclick="switchTutorialTab(this, 'tab-syntax')">Lyrics Syntax</button>
-            <button class="tutorial-tab" onclick="switchTutorialTab(this, 'tab-shortcuts')">Shortcuts</button>
+    <div class="kmake-modal-backdrop" onclick="closeTutorial()"></div>
+    <div class="kmake-modal-content tutorial-content">
+        <div class="kmake-modal-header">
+            <i data-lucide="book-open" class="modal-header-icon"></i>
+            <h2>How to use Kmake</h2>
+            <button onclick="closeTutorial()" class="modal-close-btn"><i data-lucide="x"></i></button>
         </div>
-        <div id="tab-workflow" class="tutorial-tab-panel active">
-            <div class="tutorial-step">
-                <div class="step-num">1</div>
-                <div class="step-body">
-                    <b>Load Music</b>
-                    <p>Click <kbd>Music → Load From File</kbd> to import an audio file, or use <kbd>Load From YouTube</kbd> for a YouTube link.</p>
+        <div class="kmake-modal-body tutorial-body">
+            <div class="tutorial-tabs">
+                <button class="tutorial-tab active" onclick="switchTutorialTab(this, 'tab-workflow')">Workflow</button>
+                <button class="tutorial-tab" onclick="switchTutorialTab(this, 'tab-syntax')">Lyrics Syntax</button>
+                <button class="tutorial-tab" onclick="switchTutorialTab(this, 'tab-shortcuts')">Shortcuts</button>
+            </div>
+            <div id="tab-workflow" class="tutorial-tab-panel active">
+                <div class="tutorial-step">
+                    <div class="step-num">1</div>
+                    <div class="step-body">
+                        <b>Load Music</b>
+                        <p>Click <kbd>Music → Load From File</kbd> to import an audio file, or use <kbd>Load From YouTube</kbd> for a YouTube link.</p>
+                    </div>
+                </div>
+                <div class="tutorial-step">
+                    <div class="step-num">2</div>
+                    <div class="step-body">
+                        <b>Enter Lyrics</b>
+                        <p>Type or paste your lyrics in the <b>Lyrics</b> panel. Use the <b>Syntax</b> tab to learn formatting. Click <kbd>Parse</kbd> to preview.</p>
+                    </div>
+                </div>
+                <div class="tutorial-step">
+                    <div class="step-num">3</div>
+                    <div class="step-body">
+                        <b>Set Up Agents (Singers)</b>
+                        <p>Click <kbd>Agents</kbd> in the header to add or edit singers. Each singer needs an alias like <code>v1</code>.</p>
+                    </div>
+                </div>
+                <div class="tutorial-step">
+                    <div class="step-num">4</div>
+                    <div class="step-body">
+                        <b>Sync Words</b>
+                        <p>Press <kbd>Space</kbd> to play, then press <kbd>Enter</kbd> on each word/syllable as it's sung. The word turns green when active.</p>
+                    </div>
+                </div>
+                <div class="tutorial-step">
+                    <div class="step-num">5</div>
+                    <div class="step-body">
+                        <b>Export</b>
+                        <p>Go to <kbd>File → Export</kbd> to save as JSON, LRC, eLRC, or the native <code>.kmake</code> format.</p>
+                    </div>
                 </div>
             </div>
-            <div class="tutorial-step">
-                <div class="step-num">2</div>
-                <div class="step-body">
-                    <b>Enter Lyrics</b>
-                    <p>Type or paste your lyrics in the <b>Lyrics</b> panel. Use the <b>Syntax</b> tab to learn formatting. Click <kbd>Parse</kbd> to preview.</p>
-                </div>
-            </div>
-            <div class="tutorial-step">
-                <div class="step-num">3</div>
-                <div class="step-body">
-                    <b>Set Up Agents (Singers)</b>
-                    <p>Click <kbd>Agents</kbd> in the header to add or edit singers. Each singer needs an alias like <code>v1</code>.</p>
-                </div>
-            </div>
-            <div class="tutorial-step">
-                <div class="step-num">4</div>
-                <div class="step-body">
-                    <b>Sync Words</b>
-                    <p>Press <kbd>Space</kbd> to play, then press <kbd>Enter</kbd> on each word/syllable as it's sung. The word turns green when active.</p>
-                </div>
-            </div>
-            <div class="tutorial-step">
-                <div class="step-num">5</div>
-                <div class="step-body">
-                    <b>Export</b>
-                    <p>Go to <kbd>File → Export</kbd> to save as JSON, LRC, eLRC, or the native <code>.kmake</code> format.</p>
-                </div>
-            </div>
-        </div>
-        <div id="tab-syntax" class="tutorial-tab-panel">
-            <div class="syntax-section">
-                <h3>Basic Lyrics</h3>
-                <p>Each line of text becomes one lyric line:</p>
-                <div class="code-block">Hello world
+            <div id="tab-syntax" class="tutorial-tab-panel">
+                <div class="syntax-section">
+                    <h3>Basic Lyrics</h3>
+                    <p>Each line of text becomes one lyric line:</p>
+                    <div class="code-block">Hello world
 This is the second line</div>
-            </div>
-            <div class="syntax-section">
-                <h3>Declare Agents</h3>
-                <p>Add at the top of your lyrics. Format: <code>[agent:TYPE=ALIAS:Name]</code></p>
-                <div class="code-block">[agent:person=v1:Taylor Swift]
+                </div>
+                <div class="syntax-section">
+                    <h3>Declare Agents</h3>
+                    <p>Add at the top of your lyrics. Format: <code>[agent:TYPE=ALIAS:Name]</code></p>
+                    <div class="code-block">[agent:person=v1:Taylor Swift]
 [agent:group=v2:The Band]
 [agent:virtual=v3]</div>
-                <p>Types: <code>person</code> &nbsp;|&nbsp; <code>group</code> &nbsp;|&nbsp; <code>virtual</code> &nbsp;|&nbsp; <code>other</code></p>
-                <p class="tip">💡 Agent name is <b>optional</b> — <code>[agent:person=v1]</code> is valid. Use <b>Song → Agents</b> to manage this visually!</p>
-            </div>
-            <div class="syntax-section">
-                <h3>Assign Lines to Singers</h3>
-                <p>Prefix lines with <code>alias:</code></p>
-                <div class="code-block">v1:This line is sung by singer 1
+                    <p>Types: <code>person</code> &nbsp;|&nbsp; <code>group</code> &nbsp;|&nbsp; <code>virtual</code> &nbsp;|&nbsp; <code>other</code></p>
+                    <p class="tip">💡 Agent name is <b>optional</b> — <code>[agent:person=v1]</code> is valid. Use <b>Song → Agents</b> to manage this visually!</p>
+                </div>
+                <div class="syntax-section">
+                    <h3>Assign Lines to Singers</h3>
+                    <p>Prefix lines with <code>alias:</code></p>
+                    <div class="code-block">v1:This line is sung by singer 1
 v2:This line is sung by singer 2
 v1:Back to singer 1</div>
-            </div>
-            <div class="syntax-section">
-                <h3>Song Sections</h3>
-                <p>Mark sections with <code>#</code>:</p>
-                <div class="code-block">#Verse 1
+                </div>
+                <div class="syntax-section">
+                    <h3>Song Sections</h3>
+                    <p>Mark sections with <code>#</code>:</p>
+                    <div class="code-block">#Verse 1
 v1:First verse line here
 #Chorus
 v1:Chorus line here</div>
-            </div>
-            <div class="syntax-section">
-                <h3>Syllable Splitting</h3>
-                <p>Use <code>]</code> to split a word into syllables. Use <code>-</code> only for hyphenated words where the dash belongs in the word:</p>
-                <div class="code-block">v1:Beau]ti]ful
+                </div>
+                <div class="syntax-section">
+                    <h3>Syllable Splitting</h3>
+                    <p>Use <code>]</code> to split a word into syllables. Use <code>-</code> only for hyphenated words where the dash belongs in the word:</p>
+                    <div class="code-block">v1:Beau]ti]ful
 v1:A-ma-zing
 v1:Makan-makan</div>
-                <p class="tip">Both create separate timing slots. Prefer <code>]</code> for normal splits.</p>
-            </div>
-            <div class="syntax-section">
-                <h3>Full Example</h3>
-                <div class="code-block">[agent:person=v1:Alice]
+                    <p class="tip">Both create separate timing slots. Prefer <code>]</code> for normal splits.</p>
+                </div>
+                <div class="syntax-section">
+                    <h3>Full Example</h3>
+                    <div class="code-block">[agent:person=v1:Alice]
 [agent:person=v2:Bob]
 #Verse 1
 v1:Hel]lo world, it's me
@@ -2905,50 +2829,49 @@ v2:And I am here with you
 #Chorus
 v1:We sing to]ge]ther
 v2:Be]neath the stars</div>
-            </div>
-        </div>
-        <div id="tab-shortcuts" class="tutorial-tab-panel">
-            <div class="shortcut-group">
-                <h3>Syncing</h3>
-                <div class="shortcut-list">
-                    <div class="shortcut-row"><kbd>Enter</kbd><span>Stamp next word (sync)</span></div>
-                    <div class="shortcut-row"><kbd>Space</kbd><span>Play / Pause music</span></div>
-                    <div class="shortcut-row"><kbd>←</kbd><span>Seek to previous word</span></div>
-                    <div class="shortcut-row"><kbd>→</kbd><span>Seek to next word</span></div>
                 </div>
             </div>
-            <div class="shortcut-group">
-                <h3>Editing</h3>
-                <div class="shortcut-list">
-                    <div class="shortcut-row"><kbd>Ctrl+Z</kbd><span>Undo (stamps, timing, singer changes)</span></div>
-                    <div class="shortcut-row"><kbd>Ctrl+Shift+Z</kbd><span>Redo</span></div>
-                    <div class="shortcut-row"><kbd>Ctrl+Y</kbd><span>Redo (alternate)</span></div>
-                    <div class="shortcut-row"><kbd>Alt+↑ / ↓</kbd><span>Move selected line up / down (timing kept)</span></div>
+            <div id="tab-shortcuts" class="tutorial-tab-panel">
+                <div class="shortcut-group">
+                    <h3>Syncing</h3>
+                    <div class="shortcut-list">
+                        <div class="shortcut-row"><kbd>Enter</kbd><span>Stamp next word (sync)</span></div>
+                        <div class="shortcut-row"><kbd>Space</kbd><span>Play / Pause music</span></div>
+                        <div class="shortcut-row"><kbd>←</kbd><span>Seek to previous word</span></div>
+                        <div class="shortcut-row"><kbd>→</kbd><span>Seek to next word</span></div>
+                    </div>
                 </div>
-            </div>
-            <div class="shortcut-group">
-                <h3>Tips</h3>
-                <ul class="tip-list">
-                    <li>Click any word in the Sync panel to <b>select</b> it and edit its timing in the Properties panel.</li>
-                    <li><b>⌫ Unstamp</b> in the Properties panel clears a word's timing so you can re-stamp it with Enter.</li>
-                    <li>To reorder lines (e.g. swap two sung phrases), select a word and press <b>Alt+↑/↓</b> — every word keeps its timing.</li>
-                    <li>Your work <b>autosaves</b> to the browser — if you close the tab, you'll be offered a restore next time.</li>
-                    <li>Enable <b>Preview Mode</b> to see a karaoke-style view with themes.</li>
-                    <li>Use <b>File → Save as</b> to save a <code>.kmake</code> file (audio + lyrics bundled).</li>
-                    <li>Drag panel titles to rearrange the layout.</li>
-                </ul>
+                <div class="shortcut-group">
+                    <h3>Editing</h3>
+                    <div class="shortcut-list">
+                        <div class="shortcut-row"><kbd>Ctrl+Z</kbd><span>Undo (stamps, timing, singer changes)</span></div>
+                        <div class="shortcut-row"><kbd>Ctrl+Shift+Z</kbd><span>Redo</span></div>
+                        <div class="shortcut-row"><kbd>Ctrl+Y</kbd><span>Redo (alternate)</span></div>
+                        <div class="shortcut-row"><kbd>Alt+↑ / ↓</kbd><span>Move selected line up / down (timing kept)</span></div>
+                    </div>
+                </div>
+                <div class="shortcut-group">
+                    <h3>Tips</h3>
+                    <ul class="tip-list">
+                        <li>Click any word in the Sync panel to <b>select</b> it and edit its timing in the Properties panel.</li>
+                        <li><b>⌫ Unstamp</b> in the Properties panel clears a word's timing so you can re-stamp it with Enter.</li>
+                        <li>To reorder lines (e.g. swap two sung phrases), select a word and press <b>Alt+↑/↓</b> — every word keeps its timing.</li>
+                        <li>Your work <b>autosaves</b> to the browser — if you close the tab, you'll be offered a restore next time.</li>
+                        <li>Enable <b>Preview Mode</b> to see a karaoke-style view with themes.</li>
+                        <li>Use <b>File → Save as</b> to save a <code>.kmake</code> file (audio + lyrics bundled).</li>
+                        <li>Drag panel titles to rearrange the layout.</li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
-</div>
-`
+    `
     document.body.appendChild(modal)
     requestAnimationFrame(() => {
         modal.classList.add('visible');
         lucide.createIcons()
     })
 }
-
 function switchTutorialTab(btn, tabId) {
     document.querySelectorAll('.tutorial-tab').forEach(t => t.classList.remove('active'))
     document.querySelectorAll('.tutorial-tab-panel').forEach(p => p.classList.remove('active'))
@@ -2956,7 +2879,6 @@ function switchTutorialTab(btn, tabId) {
     const panel = document.getElementById(tabId)
     if (panel) panel.classList.add('active')
 }
-
 function closeTutorial() {
     const modal = document.getElementById('tutorial-modal')
     if (!modal) return
@@ -3362,7 +3284,7 @@ function syncSimilarLinesTiming() {
                 </label>`;
         });
 
-                // NEW: Add the "Sync This Group Only" button at the bottom of each group card
+        // NEW: Add the "Sync This Group Only" button at the bottom of each group card
         groupsHTML += `
             <div class="sync-group-actions">
                 <button type="button" class="sync-group-apply-btn" onclick="executeSyncForGroup(${gi})">
@@ -3407,7 +3329,6 @@ function syncSimilarLinesTiming() {
     });
 }
 
-// NEW: Executes sync for ONE specific group and closes the modal
 // Executes sync for ONE specific group and closes the modal safely
 function executeSyncForGroup(gi) {
     const modal = document.getElementById('sync-similar-modal');
@@ -3418,7 +3339,6 @@ function executeSyncForGroup(gi) {
     const group = groups[gi];
     if (!group) return;
 
-    // 1. Validate selections BEFORE closing
     const selectedSource = modal.querySelector(`input[name="sync-source-${gi}"]:checked`);
     if (!selectedSource) {
         showToast('Please select a source line for this group', 2500, 'error');
@@ -3431,10 +3351,8 @@ function executeSyncForGroup(gi) {
         return;
     }
 
-    // 2. Validation passed! Close the modal immediately for instant UI feedback
     closeSyncSimilarModal();
 
-    // 3. Execute the sync with a safety net
     try {
         const sourceMemberIdx = parseInt(selectedSource.value);
         const sourceLine = lyricLines[sourceMemberIdx].line;
@@ -3451,18 +3369,24 @@ function executeSyncForGroup(gi) {
             const targetSyls = targetLine.syllabus || [];
             if (targetSyls.length === 0) return;
 
-            // Wipe existing timing
-            targetSyls.forEach(s => { s.time = 0; s.duration = 0; s.isDone = false; });
+            // Map duration only from source → target via LCS (start times remain untouched)
+            _restoreTimingViaLCS(targetSyls, sourceSyls, false, true);
             
-            // Map timing via LCS
-            _restoreTimingViaLCS(targetSyls, sourceSyls);
+            // Update DOM for matched syllables
+            targetSyls.forEach(s => {
+                if (s.isDone && s.element) {
+                    s.element.classList.add('done-word');
+                    s.element.style.setProperty('--duration', s.duration + 'ms');
+                }
+            });
+
             _recalcLineTime(targetLine);
             syncedCount++;
         });
 
         rebuildLyricsDOM();
         _scheduleSessionSave();
-        showToast(`Synced ${syncedCount} line${syncedCount !== 1 ? 's' : ''} in Group ${gi + 1}`);
+        showToast(`Synced durations for ${syncedCount} line${syncedCount !== 1 ? 's' : ''} in Group ${gi + 1}`);
         
     } catch (e) {
         console.error('Sync group error:', e);
@@ -3470,4 +3394,55 @@ function executeSyncForGroup(gi) {
     }
 }
 
-// (Keep your existing executeSyncSimilarLines and closeSyncSimilarModal functions exactly as they were)
+function executeSyncSimilarLines() {
+    const modal = document.getElementById('sync-similar-modal');
+    if (!modal) return;
+    const groups = modal._syncGroups;
+    const lyricLines = modal._lyricLines;
+
+    pushUndo();
+    let syncedCount = 0;
+
+    groups.forEach((group, gi) => {
+        const selectedSource = modal.querySelector(`input[name="sync-source-${gi}"]:checked`);
+        if (!selectedSource) return;
+        const sourceMemberIdx = parseInt(selectedSource.value);
+        const sourceLine = lyricLines[sourceMemberIdx].line;
+        const sourceSyls = sourceLine.syllabus || [];
+
+        const targetCheckboxes = modal.querySelectorAll(`.sync-group[data-group="${gi}"] .sync-target-cb:checked`);
+        
+        targetCheckboxes.forEach(cb => {
+            const memberIdx = parseInt(cb.dataset.idx);
+            if (memberIdx === sourceMemberIdx) return;
+            
+            const targetLine = lyricLines[memberIdx].line;
+            const targetSyls = targetLine.syllabus || [];
+            if (targetSyls.length === 0) return;
+
+            // Map duration only from source → target via LCS (start times remain untouched)
+            _restoreTimingViaLCS(targetSyls, sourceSyls, false, true);
+            
+            // Update DOM for matched syllables
+            targetSyls.forEach(s => {
+                if (s.isDone && s.element) {
+                    s.element.classList.add('done-word');
+                    s.element.style.setProperty('--duration', s.duration + 'ms');
+                }
+            });
+
+            _recalcLineTime(targetLine);
+            syncedCount++;
+        });
+    });
+
+    closeSyncSimilarModal();
+    rebuildLyricsDOM();
+    _scheduleSessionSave();
+    showToast(`Synced durations for ${syncedCount} line${syncedCount !== 1 ? 's' : ''}`);
+}
+
+function closeSyncSimilarModal() {
+    const m = document.getElementById('sync-similar-modal');
+    if (m) { m.classList.remove('visible'); setTimeout(() => m.remove(), 200); }
+}
