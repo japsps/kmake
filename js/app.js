@@ -3408,6 +3408,7 @@ function syncSimilarLinesTiming() {
 }
 
 // NEW: Executes sync for ONE specific group and closes the modal
+// Executes sync for ONE specific group and closes the modal safely
 function executeSyncForGroup(gi) {
     const modal = document.getElementById('sync-similar-modal');
     if (!modal) return;
@@ -3417,15 +3418,12 @@ function executeSyncForGroup(gi) {
     const group = groups[gi];
     if (!group) return;
 
+    // 1. Validate selections BEFORE closing
     const selectedSource = modal.querySelector(`input[name="sync-source-${gi}"]:checked`);
     if (!selectedSource) {
         showToast('Please select a source line for this group', 2500, 'error');
         return;
     }
-
-    const sourceMemberIdx = parseInt(selectedSource.value);
-    const sourceLine = lyricLines[sourceMemberIdx].line;
-    const sourceSyls = sourceLine.syllabus || [];
 
     const targetCheckboxes = modal.querySelectorAll(`.sync-group[data-group="${gi}"] .sync-target-cb:checked`);
     if (targetCheckboxes.length === 0) {
@@ -3433,27 +3431,43 @@ function executeSyncForGroup(gi) {
         return;
     }
 
-    pushUndo();
-    let syncedCount = 0;
-
-    targetCheckboxes.forEach(cb => {
-        const memberIdx = parseInt(cb.dataset.idx);
-        if (memberIdx === sourceMemberIdx) return; 
-        
-        const targetLine = lyricLines[memberIdx].line;
-        const targetSyls = targetLine.syllabus || [];
-        if (targetSyls.length === 0) return;
-
-        targetSyls.forEach(s => { s.time = 0; s.duration = 0; s.isDone = false; });
-        _restoreTimingViaLCS(targetSyls, sourceSyls);
-        _recalcLineTime(targetLine);
-        syncedCount++;
-    });
-
+    // 2. Validation passed! Close the modal immediately for instant UI feedback
     closeSyncSimilarModal();
-    rebuildLyricsDOM();
-    _scheduleSessionSave();
-    showToast(`Synced ${syncedCount} line${syncedCount !== 1 ? 's' : ''} in Group ${gi + 1}`);
+
+    // 3. Execute the sync with a safety net
+    try {
+        const sourceMemberIdx = parseInt(selectedSource.value);
+        const sourceLine = lyricLines[sourceMemberIdx].line;
+        const sourceSyls = sourceLine.syllabus || [];
+
+        pushUndo();
+        let syncedCount = 0;
+
+        targetCheckboxes.forEach(cb => {
+            const memberIdx = parseInt(cb.dataset.idx);
+            if (memberIdx === sourceMemberIdx) return; 
+            
+            const targetLine = lyricLines[memberIdx].line;
+            const targetSyls = targetLine.syllabus || [];
+            if (targetSyls.length === 0) return;
+
+            // Wipe existing timing
+            targetSyls.forEach(s => { s.time = 0; s.duration = 0; s.isDone = false; });
+            
+            // Map timing via LCS
+            _restoreTimingViaLCS(targetSyls, sourceSyls);
+            _recalcLineTime(targetLine);
+            syncedCount++;
+        });
+
+        rebuildLyricsDOM();
+        _scheduleSessionSave();
+        showToast(`Synced ${syncedCount} line${syncedCount !== 1 ? 's' : ''} in Group ${gi + 1}`);
+        
+    } catch (e) {
+        console.error('Sync group error:', e);
+        showToast('An error occurred during sync', 3000, 'error');
+    }
 }
 
 // (Keep your existing executeSyncSimilarLines and closeSyncSimilarModal functions exactly as they were)
