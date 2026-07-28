@@ -3,7 +3,7 @@
     <img src="https://i.ibb.co/JjmG6T1/image.png" alt="Logo" width="80" height="80">
   </a>
 
-  <h3 align="center">kmake - online JSON lyrics maker</h3>
+  <h3 align="center">kmake - online JSON lyrics maker for Just Dance</h3>
 
   <p align="center">
     Introducing a new way to make and preview lyrics, right in your web browser.
